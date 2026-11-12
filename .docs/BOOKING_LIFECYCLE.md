@@ -1,0 +1,15 @@
+# Booking lifecycle
+
+Customers select date, category/time and duration. The web application combines `QueryRoomCategories({business_id})` and `QueryReservations({business_id,date})` with business opening hours; no availability endpoint is needed. Starts and durations use 15-minute increments, ending by closing. Each option requires one physical room free continuously for the entire interval. Customer controls show category labels, never assigned room identities. Customer details, submission UI and payment pages are outside this selection slice.
+
+`POST /v1/bookings` accepts business_id, customer_id, room_category_id, from and positive duration in minutes. The backend preserves the positive-minute contract, including non-quarter-hour requests. `RequireRoomCategory` returns 404 for a missing or foreign category. `AssignRoom` selects the first room by sort order, name, then ID with no blocking overlap for the exact interval. Empty or fully blocked categories return 409 before booking/payment writes.
+
+An overlap is `existing.from < requested.to AND existing.to > requested.from`. Confirmed bookings and pending holds whose expire_at is later than now block rooms. Cancelled bookings and expired pending holds do not. Boundary meetings are permitted. Reservation queries return stored status and expiry even for expired holds. Date queries include every overlap in the exact 24-hour window, including midnight crossings. Range queries retain their contained-interval contract. Both require business_id, scoped through the assigned physical room's current category.
+
+Creation stores one reservation with the originally requested room_category_id and assigned room_id. Staff may subsequently move a room between categories; the stored requested category remains historical. Booking lookup includes both category and physical room information.
+
+Without an upfront policy the booking confirms immediately. With a policy it remains pending, expires 10 minutes after creation, and creates a pending payment plus demo order. The upfront total remains policy amount plus RM1.50 gateway fee. Category rental fees retain their existing duration/price values and first-by-ID query behavior; rental quotation and fee unit policy remain undecided.
+
+Creation returns booking_id and payment_url (null without payment). Demo is the default gateway even without configuration. PUT /v1/demo-payment-orders/:orderId accepts paid/cancelled/rejected and invokes the webhook in process. The direct POST /webhook/payment/demo requires order_id, reference_id (internal payment ID), and status. ConfirmPayment inserts a new paid payment, retaining pending history, then the handler separately calls ConfirmBooking. CancelPayment similarly records cancelled/rejected outcomes before CancelBooking. Cancelled reservations stay stored but no longer block rooms.
+
+Concurrency protection and atomicity remain deferred for MVP. Late payment, allowed status transitions, duplicate/finalized outcome enforcement, gateway authentication, retries, refunds and live gateways need later policy or implementation. No remote migrations or deployment are part of local verification.

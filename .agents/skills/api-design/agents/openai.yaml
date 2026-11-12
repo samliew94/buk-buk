@@ -1,0 +1,3 @@
+interface:
+  display_name: "API Design"
+  short_description: "Apply booking API routes, JSON, and use case conventions"

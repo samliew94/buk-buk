@@ -1,0 +1,21 @@
+@import 'tailwindcss';
+@import './customer/app.css';
+
+:root {
+	--grey: #9a9a9a;
+	--white: #fcfcff;
+	--black: #171717;
+	--primary: #1879b1;
+	--accent: #f0b653;
+	--success: #30824e;
+	--danger: #aa3535;
+	--warning: #a16207;
+	--info: #1d4ed8;
+}
+
+@theme {
+	--font-cormorant: 'Cormorant Garamond', Georgia, serif;
+	--font-dm-sans: 'DM Sans', ui-sans-serif, system-ui, sans-serif;
+	--font-noto-serif-sc: 'Noto Serif SC', 'Songti SC', serif;
+	--font-ma-shan-zheng: 'Ma Shan Zheng', 'KaiTi', cursive;
+}

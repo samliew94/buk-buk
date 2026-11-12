@@ -1,0 +1,81 @@
+@theme {
+	--font-poppins: 'Poppins', sans-serif;
+	--color-booking-container: #272727;
+	--color-booking-muted: #848484;
+	--color-booking-black: #000000;
+	--color-booking-white: #ffffff;
+	--color-booking-primary: #fff000;
+	--color-booking-secondary: #fff000;
+	--color-booking-ghost: #848484;
+	--color-booking-success: #86efac;
+	--color-booking-info: #93c5fd;
+	--color-booking-danger: #fca5a5;
+	--color-booking-warning: #fcd34d;
+	--text-booking-h1: clamp(2.25rem, 6vw, 3.5rem);
+	--text-booking-h2: 1.5rem;
+	--text-booking-h3: 1.125rem;
+	--text-booking-p: 1rem;
+	--text-booking-body: 0.9375rem;
+}
+
+.customer-app {
+	@apply min-h-screen bg-booking-black text-booking-body text-booking-white;
+	font-family: 'Montserrat', sans-serif;
+}
+
+.customer-app :is(button, input, select, textarea) {
+	font-family: inherit;
+}
+
+.customer-app input {
+	color-scheme: dark;
+}
+
+.customer-app h1 {
+	@apply text-booking-h1 leading-tight font-bold tracking-tight;
+}
+
+.customer-app h2 {
+	@apply text-booking-h2 leading-tight font-bold;
+}
+
+.customer-app h3 {
+	@apply text-booking-h3 font-semibold;
+}
+
+.customer-app p {
+	@apply text-booking-p;
+}
+
+.booking-button {
+	@apply inline-flex min-h-11 items-center justify-center gap-2 rounded-lg px-4 font-semibold transition hover:opacity-85 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-booking-primary;
+}
+
+.date-button-row {
+	scrollbar-color: var(--color-booking-primary) transparent;
+}
+
+.date-button-row::-webkit-scrollbar {
+	height: 8px;
+}
+
+.date-button-row::-webkit-scrollbar-track {
+	background: transparent;
+}
+
+.date-button-row::-webkit-scrollbar-thumb {
+	background: var(--color-booking-primary);
+	border-radius: 9999px;
+}
+
+.booking-button[data-variant='ghost'] {
+	@apply border-0 bg-transparent text-booking-white;
+}
+
+.booking-button[data-variant='primary'] {
+	@apply border-0 bg-booking-primary text-booking-black;
+}
+
+.booking-button[data-variant='secondary'] {
+	@apply border border-booking-primary bg-transparent text-booking-white;
+}

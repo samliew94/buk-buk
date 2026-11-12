@@ -1,0 +1,1132 @@
+{
+  "info": {
+    "name": "api",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "Booking API local collection. Set url and business_id. QueryRoomCategories -> select room_category_id -> CreateCustomer -> QueryReservations -> CreateBooking -> QueryBooking. Staff fixture: CreateBusiness -> CreateRoomCategory -> CreateRoom. Booking assigns one physical room automatically. Date reservation queries include overlapping intervals; range queries retain contained intervals. All reservation queries require business_id. Payment flow and alternatives remain as documented on individual requests. Concurrency, atomicity, finalized payment enforcement and late-payment policies are deferred. Do not run alternative payment outcomes on the same booking. No credentials are exported."
+  },
+  "auth": {
+    "type": "noauth"
+  },
+  "variable": [
+    {
+      "key": "url",
+      "value": "http://localhost:8787",
+      "type": "string"
+    },
+    {
+      "key": "business_id",
+      "value": "01a19f40-3132-76b0-8d17-3a042ee0cad6",
+      "type": "string"
+    },
+    {
+      "key": "customer_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "room_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "rentalFeeId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "booking_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "payment_url",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "order_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "reference_id",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "bookingFrom",
+      "value": "2026-11-08T10:00:00+08:00",
+      "type": "string"
+    },
+    {
+      "key": "reservationFrom",
+      "value": "2026-11-07T16:00:00.000Z",
+      "type": "string"
+    },
+    {
+      "key": "reservationTo",
+      "value": "2026-11-08T16:00:00.000Z",
+      "type": "string"
+    },
+    {
+      "key": "adminPassword",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "room_category_id",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "Health",
+      "item": [
+        {
+          "name": "Health",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{url}}/",
+            "description": "Public health check. Returns API name and status.",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Businesses",
+      "item": [
+        {
+          "name": "CreateBusiness",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{url}}/v1/businesses",
+            "description": "Creates a business and saves business_id. A new business has no upfront payment policy, so its bookings confirm without payment.",
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Postman Demo Business\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 201\", () => pm.response.to.have.status(201));",
+                  "if (pm.response.code >= 200 && pm.response.code < 300) {",
+                  "  const data = pm.response.json();",
+                  "  if (data && data.id !== undefined) pm.collectionVariables.set(\"business_id\", data.id);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "QueryBusiness",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{url}}/v1/businesses/{{business_id}}",
+            "description": "Returns the business with open_at and close_at as UTC HH:mm strings or null. Missing ID returns 404.",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "UpdateBusiness",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{url}}/v1/businesses/{{business_id}}",
+            "description": "Requires a nonblank name. Missing business returns 404.",
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Postman Demo Business Updated\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Customers",
+      "item": [
+        {
+          "name": "CreateCustomer",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{url}}/v1/customers",
+            "description": "Creates a customer and saves customer_id. Name and phone must be nonblank.",
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Demo Guest\",\n  \"phone\": \"0123456789\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 201\", () => pm.response.to.have.status(201));",
+                  "if (pm.response.code >= 200 && pm.response.code < 300) {",
+                  "  const data = pm.response.json();",
+                  "  if (data && data.id !== undefined) pm.collectionVariables.set(\"customer_id\", data.id);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "QueryCustomer",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{url}}/v1/customers/{{customer_id}}",
+            "description": "Returns the customer including created_at, or null with HTTP 200 when missing.",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "UpdateCustomer",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{url}}/v1/customers/{{customer_id}}",
+            "description": "Replaces name and phone. Missing customer returns 404.",
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Demo Guest Updated\",\n  \"phone\": \"0123456789\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Room categories",
+      "item": [
+        {
+          "name": "CreateRoomCategory",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{url}}/v1/room-categories",
+            "description": "Categories belong to business_id. Query returns ordered categories with ordered room_ids, including empty categories. Writes require business_id, name, sort_order; acronym is optional/null on creation and nonblank on update.",
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"business_id\": \"{{business_id}}\",\n  \"name\": \"Family\",\n  \"acronym\": \"FR\",\n  \"sort_order\": 0\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 201\", () => pm.response.to.have.status(201));",
+                  "if (pm.response.code >= 200 && pm.response.code < 300) {",
+                  "  const data = pm.response.json();",
+                  "  if (data && data.id !== undefined) pm.collectionVariables.set(\"room_category_id\", data.id);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "QueryRoomCategories",
+          "request": {
+            "method": "QUERY",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{url}}/v1/room-categories",
+            "description": "Categories belong to business_id. Query returns ordered categories with ordered room_ids, including empty categories. Writes require business_id, name, sort_order; acronym is optional/null on creation and nonblank on update.",
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"business_id\": \"{{business_id}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "UpdateRoomCategory",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{url}}/v1/room-categories/{{room_category_id}}",
+            "description": "Categories belong to business_id. Query returns ordered categories with ordered room_ids, including empty categories. Writes require business_id, name, sort_order; acronym is optional/null on creation and nonblank on update.",
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"business_id\": \"{{business_id}}\",\n  \"name\": \"Family\",\n  \"acronym\": \"FR\",\n  \"sort_order\": 0\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Rooms",
+      "item": [
+        {
+          "name": "CreateRoom",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{url}}/v1/rooms",
+            "description": "Staff physical rooms. Query is scoped by business_id through category ownership. Writes accept room_category_id, name, sort_order. Create returns 201 with id and those fields; update returns 204.",
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"room_category_id\": \"{{room_category_id}}\",\n  \"name\": \"FR1\",\n  \"sort_order\": 0\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 201\", () => pm.response.to.have.status(201));",
+                  "if (pm.response.code >= 200 && pm.response.code < 300) {",
+                  "  const data = pm.response.json();",
+                  "  if (data && data.id !== undefined) pm.collectionVariables.set(\"room_id\", data.id);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "QueryRooms",
+          "request": {
+            "method": "QUERY",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{url}}/v1/rooms",
+            "description": "Staff physical rooms. Query is scoped by business_id through category ownership. Writes accept room_category_id, name, sort_order. Create returns 201 with id and those fields; update returns 204.",
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"business_id\": \"{{business_id}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "UpdateRoom",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{url}}/v1/rooms/{{room_id}}",
+            "description": "Staff physical rooms. Query is scoped by business_id through category ownership. Writes accept room_category_id, name, sort_order. Create returns 201 with id and those fields; update returns 204.",
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"room_category_id\": \"{{room_category_id}}\",\n  \"name\": \"FR1\",\n  \"sort_order\": 0\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 204\", () => pm.response.to.have.status(204));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Room rental fees",
+      "item": [
+        {
+          "name": "CreateRoomCategoryRentalFee",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{url}}/v1/room-category-rental-fees",
+            "description": "Category fee: room_category_id, nonnegative safe integer duration, finite nonnegative price. Query returns the first fee by ID or null. No rental quote calculation.",
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"room_category_id\": \"{{room_category_id}}\",\n  \"duration\": 1,\n  \"price\": 12.5\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 201\", () => pm.response.to.have.status(201));",
+                  "if (pm.response.code >= 200 && pm.response.code < 300) {",
+                  "  const data = pm.response.json();",
+                  "  if (data && data.id !== undefined) pm.collectionVariables.set(\"rentalFeeId\", data.id);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "QueryRoomCategoryRentalFee",
+          "request": {
+            "method": "QUERY",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{url}}/v1/room-category-rental-fees",
+            "description": "Category fee: room_category_id, nonnegative safe integer duration, finite nonnegative price. Query returns the first fee by ID or null. No rental quote calculation.",
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"room_category_id\": \"{{room_category_id}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "UpdateRoomCategoryRentalFee",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{url}}/v1/room-category-rental-fees/{{rentalFeeId}}",
+            "description": "Category fee: room_category_id, nonnegative safe integer duration, finite nonnegative price. Query returns the first fee by ID or null. No rental quote calculation.",
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"room_category_id\": \"{{room_category_id}}\",\n  \"duration\": 1,\n  \"price\": 12.5\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Reservations",
+      "item": [
+        {
+          "name": "QueryReservations",
+          "request": {
+            "method": "QUERY",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{url}}/v1/reservations",
+            "description": "Requires business_id. Date selects all overlaps within 24 hours from the UTC timestamp; range retains from >= lower and to < upper. Returns assigned room_id and stored requested room_category_id plus existing booking/interval fields, including expired holds.",
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"from\": \"{{reservationFrom}}\",\n  \"to\": \"{{reservationTo}}\",\n  \"business_id\": \"{{business_id}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "QueryReservationsByDate",
+          "request": {
+            "method": "QUERY",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{url}}/v1/reservations",
+            "description": "Requires business_id. Date selects all overlaps within 24 hours from the UTC timestamp; range retains from >= lower and to < upper. Returns assigned room_id and stored requested room_category_id plus existing booking/interval fields, including expired holds.",
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"date\": \"{{reservationFrom}}\",\n  \"business_id\": \"{{business_id}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Bookings",
+      "item": [
+        {
+          "name": "CreateBooking",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{url}}/v1/bookings",
+            "description": "Requests one category and exact interval. Category must belong to business (404). Assigns the first continuously free physical room by sort order, name, ID. Unavailable returns 409 before writes. Positive minute durations remain supported. Returns booking_id and payment_url; holds expire after 10 minutes.",
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"business_id\": \"{{business_id}}\",\n  \"customer_id\": \"{{customer_id}}\",\n  \"from\": \"{{bookingFrom}}\",\n  \"duration\": 60,\n  \"room_category_id\": \"{{room_category_id}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 201\", () => pm.response.to.have.status(201));",
+                  "if (pm.response.code === 201) {",
+                  "  const data = pm.response.json();",
+                  "  pm.collectionVariables.set(\"booking_id\", data.booking_id);",
+                  "  pm.collectionVariables.set(\"payment_url\", data.payment_url || \"\");",
+                  "  pm.collectionVariables.set(\"order_id\", \"\");",
+                  "  pm.collectionVariables.set(\"reference_id\", \"\");",
+                  "  if (data.payment_url) {",
+                  "    const match = data.payment_url.match(/\\/demo\\/payment\\/([^/?#]+)/);",
+                  "    if (match) pm.collectionVariables.set(\"order_id\", decodeURIComponent(match[1]));",
+                  "  }",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "QueryBooking",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{url}}/v1/bookings/{{booking_id}}",
+            "description": "Returns booking or null. Reservations include assigned room_id/room_name and requested room_category_id/room_category_name/room_category_acronym, interval and exact duration in minutes.",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Demo payment orders \u2014 choose one outcome per booking",
+      "item": [
+        {
+          "name": "QueryDemoPaymentOrder",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{url}}/v1/demo-payment-orders/{{order_id}}",
+            "description": "Requires an order_id from a booking payment_url. Returns null if missing. Saves reference_id (internal payment ID) for the optional direct webhook request.",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "if (pm.response.code >= 200 && pm.response.code < 300) {",
+                  "  const data = pm.response.json();",
+                  "  if (data && data.reference_id !== undefined) pm.collectionVariables.set(\"reference_id\", data.reference_id);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "SubmitDemoPayment (paid)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{url}}/v1/demo-payment-orders/{{order_id}}",
+            "description": "Updates the demo order and invokes the webhook internally. Records payment and confirms booking. Choose one outcome for each fresh booking; duplicate/finalized-outcome enforcement is deferred. This request writes data.",
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"paid\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "SubmitDemoPayment (cancelled)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{url}}/v1/demo-payment-orders/{{order_id}}",
+            "description": "Updates the demo order and invokes the webhook internally. Records payment outcome and cancels booking. Choose one outcome for each fresh booking; duplicate/finalized-outcome enforcement is deferred. This request writes data.",
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"cancelled\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "SubmitDemoPayment (rejected)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{url}}/v1/demo-payment-orders/{{order_id}}",
+            "description": "Updates the demo order and invokes the webhook internally. Records payment outcome and cancels booking. Choose one outcome for each fresh booking; duplicate/finalized-outcome enforcement is deferred. This request writes data.",
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"rejected\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Payment webhook \u2014 alternative to demo submission",
+      "item": [
+        {
+          "name": "HandleDemoPaymentWebhook",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{url}}/webhook/payment/demo",
+            "description": "Direct gateway callback example; status also accepts cancelled/rejected. Resolves payment by reference_id, records outcome, then confirms/cancels booking. Does not update the demo order. Use instead of PUT demo submission for a fresh pending booking, not after it. Unknown payment returns 404. Gateway authentication and duplicate handling are deferred.",
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"order_id\": \"{{order_id}}\",\n  \"reference_id\": \"{{reference_id}}\",\n  \"status\": \"paid\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 204\", () => pm.response.to.have.status(204));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Authentication",
+      "item": [
+        {
+          "name": "Login",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{url}}/v1/auth/login",
+            "description": "Set adminPassword locally in Postman before sending. No credentials are included in this export. Saves the returned token as a local run variable (pm.variables), usable by subsequent requests in the same runner execution. For individual sends, copy the token into a local token variable. Invalid credentials return 401.",
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"password\": \"{{adminPassword}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "if (pm.response.code === 200) pm.variables.set(\"token\", pm.response.json().token);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "QueryCurrentIdentity",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{url}}/v1/auth/me",
+            "description": "Requires bearer token from admin login. Missing or invalid credentials return 401.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "QueryAdminIdentity",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{url}}/v1/auth/admin",
+            "description": "Requires an admin bearer token. A non-admin token returns 403.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

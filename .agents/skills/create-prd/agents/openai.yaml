@@ -1,0 +1,4 @@
+interface:
+  display_name: "Create or Update PRD"
+  short_description: "Draft and revise PRDs using repository conventions"
+  default_prompt: "Use $create-prd to create or update a PRD following AGENTS.md."
