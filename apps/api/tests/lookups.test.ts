@@ -5,7 +5,7 @@ import { DatabaseSync } from 'node:sqlite'
 import { readFileSync, readdirSync } from 'node:fs'
 import { createApp } from '../src/index'
 
-test('booking and demo order GET lookups return snake_case records and null for missing IDs', async (t) => {
+test('booking, payment and demo order GET lookups return snake_case records and null for missing IDs', async (t) => {
   // Site-specific configuration migrations (0014+) require ST3 seed data.
   const db = new DatabaseSync(':memory:')
   t.after(() => db.close())
@@ -32,6 +32,8 @@ test('booking and demo order GET lookups return snake_case records and null for 
   const app = createApp()
   const env = { DB: d1 }
   const expected = [
+    ['/v1/payments/payment-1', { id: 'payment-1', booking_id: 'booking-1', price: 1.5 }],
+    ['/v1/payments/missing', null],
     ['/v1/bookings/booking-1', { id: 'booking-1', customer_id: 'customer-1', status: 'pending', created_at: '2026-11-07T00:00:00.000Z', expire_at: '2026-11-07T00:10:00.000Z', reservations: [] }],
     ['/v1/demo-payment-orders/order-1', { id: 'order-1', reference_id: 'payment-1', price: 1.5, status: 'pending', created_at: '2026-11-07T00:00:00.000Z' }],
     ['/v1/bookings/missing', null],

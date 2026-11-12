@@ -11,7 +11,7 @@ export class DemoPaymentOrder {
   ) {}
 
   get paymentUrl(): string {
-    return `/demo/payment/${this.id.value}`;
+    return `/payment/demo/${this.id.value}`;
   }
 
 }

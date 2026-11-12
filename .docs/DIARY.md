@@ -1,5 +1,36 @@
 # 07 Nov 2026
 
+- Shared customer TopNav hamburger now opens a right-side black drawer with a
+  white overlay at 33% opacity. Its only link is New Reservation, pointing to
+  `/customer/bookings/new`, in white 14px Montserrat Regular with primary-yellow
+  text while pressed. Native modal focus handling, Escape, overlay dismissal and
+  a close button are supported; selecting the link closes the drawer.
+- From the desktop (`md`, 768px) breakpoint, hide the hamburger and display
+  New Reservation directly in TopNav using 16px Montserrat Regular, white text
+  and primary-yellow text while pressed. Mobile retains the 14px drawer link.
+- Fixed desktop hamburger visibility by applying responsive hiding to its wrapper,
+  avoiding the shared Button's inline-flex display override. The desktop link uses
+  an automatic left margin to stay at the far right.
+- Desktop New Reservation text also turns primary yellow on hover.
+- Desktop New Reservation lifts 2px on hover with a 200ms transition, respecting
+  reduced-motion preferences.
+- Mobile navigation drawer now spans the full viewport width at the top, uses
+  only its content height, and centers option labels horizontally. This replaces
+  the full-height right-side drawer; black background and white/33 overlay remain.
+- Mobile drawer snaps directly below the shared nav bar, using its measured
+  bottom edge when opened and limiting overflow to the remaining viewport height.
+- Added a downward black shadow beneath shared TopNav, with relative positioning
+  and stacking so the shadow appears above adjacent page content.
+- Limited the navigation drawer's white/33 backdrop to below the measured nav
+  bottom edge, keeping the nav bar undimmed while the drawer is open.
+- Changed the navigation drawer overlay to #626262 at 14% opacity, retaining
+  its below-navbar placement.
+- Removed the mobile drawer close icon and its row. Hamburger now toggles the
+  drawer; a nonmodal panel keeps the hamburger interactive. Overlay taps, Escape
+  and selecting New Reservation close it. Panel and overlay hide on desktop.
+- Added 4px backdrop blur to the mobile navigation overlay, retaining #626262
+  at 14% opacity and its placement below the navbar.
+
 ## Confirmed MVP decisions
 
 - `QueryBooking` now includes `reservations` with reservation ID, `roomId`,
@@ -258,6 +289,59 @@ change does not implement API changes.
 
 # 12 Nov 2026
 
+- Added a white 1.75rem “Contact Info” heading above the Name field on
+  `/customer/bookings/new/customer-info`.
+
+- Updated the customer frontend design skill to reflect the implemented shared
+  navigation, three-row icon summary, customer form, selector arrow spacing,
+  centered Submit, draft persistence and disabled primary button behavior.
+  Removed superseded heading, divider and selection-summary guidance.
+
+- Disabled primary buttons now use primary yellow at 30% background opacity,
+  retain full text opacity and suppress hover fading. Confirm requires a valid
+  displayed date and matching selected category/time with an available duration;
+  existing automatic valid selections remain. Submit requires non-whitespace
+  name and mobile input, and disables again if either is cleared.
+
+- Horizontally centered the customer-info Submit button below the form fields.
+
+- Added a shared primary yellow Submit button below the customer-info mobile
+  number controls. The form still prevents submission; booking creation remains
+  outside this presentation change.
+
+- Reused a shared TopNav on selection and customer-info pages: the same 48px
+  dark bar, business name and MDI menu button. Customer info loads the configured
+  business name independently so the bar also works after refresh or direct entry.
+
+- Vertically centered each customer-info summary icon with its text and removed
+  the icons' top offset.
+
+- Inset the country selector arrow 12px from its right border using an MDI
+  chevron, with reserved text padding and the native select interaction retained.
+
+- Added separate MDI icons to each customer-info summary row: calendar for date,
+  door-open for room category, and clock-outline for start time and duration.
+
+- Split the customer-info yellow booking summary into three lines: date, category,
+  then start time and duration separated by a middle dot (e.g. `10:00AM · 1 Hour`).
+  Duration labels now use `Hour`/`Hours` in this summary.
+
+- Confirm now saves the valid date, selected category as `room: { id, name }`,
+  Malaysia start time and duration in minutes under `customer.booking-draft`, then
+  navigates to `/customer/bookings/new/customer-info`. Invalid selections disable
+  Confirm; storage failures keep the selection page open with an inline error.
+- Customer info reads and validates the draft client-side across refreshes. A
+  full-width yellow calendar summary precedes Name and inline country/mobile
+  controls on black. Country defaults to MY (+60), with SG (+65) available.
+  Missing, malformed or inaccessible storage shows recovery guidance and a link
+  back. Contact details stay in page state; no submit, API or database changes.
+- Verification: production web build passes; source-only Svelte checking has zero
+  errors and five existing warnings. Standard checking still follows generated
+  build code (1369 errors in this run). Browser checks passed Confirm save/navigation
+  and blocked writes, missing/malformed/blocked reads, refresh, MYT summary and
+  singular/plural hours, country switching, focus styling, inline phone controls
+  and overflow checks at 390px and 1440px.
+
 - Explicitly locked selected Time Button hover backgrounds to solid primary and disabled their transitions so selecting a hovered time does not animate from the unselected hover color.
 
 - Applied primary/30 hover backgrounds to unselected Time Buttons. Selected Time Buttons keep their solid primary background and full opacity on hover, matching selected date and room buttons.
@@ -348,3 +432,460 @@ change does not implement API changes.
 - Reduced Select Room button width from 144px to 120px (`w-30`), retaining the fixed 48px height and horizontal scrolling. Supersedes the skill's 144px width.
 
 - Updated the customer frontend design skill to specify 120px by 48px room buttons.
+
+## Customer-info booking submission
+
+- Customer-info Submit now uses an enhanced SvelteKit form action. Validate contact
+  fields, supported MY/SG calling codes and the saved booking draft before API
+  requests. Trim name/mobile, concatenate calling code and mobile, await
+  `POST /v1/customers`, then use its returned ID in `POST /v1/bookings` with
+  `business_id`, `customer_id`, `from`, `duration` and `room_category_id`.
+  Convert Malaysia-local draft date/time to UTC ISO; duration stays in minutes.
+- Disable contact controls and Submit during submission and guard repeated submits.
+  Failures show an accessible inline error while retaining inputs and draft for retry.
+  Success restores the existing form without a modal, message, navigation or draft
+  removal; ignore the returned payment URL. No rollback or automatic retry: a
+  subsequent submission creates a new customer and booking. Backend contracts and
+  automatic physical room assignment are unchanged. This supersedes earlier notes
+  describing customer-info submission as unimplemented.
+- Verification: local-fixture Chrome checks passed sequential exact payloads,
+  MY/SG calling codes, UTC conversion across midnight, duplicate submission guard,
+  disabled controls, unchanged success page and retained draft, both API failure
+  paths retaining inputs, and blank contacts/invalid drafts preventing requests.
+  No live API writes were used.
+  Final source-only Svelte checking passes with zero errors and five existing
+  warnings. Wrangler type freshness check and the production Vite build pass.
+
+- Switched customer-info submission to direct browser fetches at the developer's
+  request, superseding the SvelteKit action above. Submit now awaits
+  `POST /v1/customers`, then `POST /v1/bookings` directly against the configured
+  public API URL. The page loader supplies that URL and business ID; its business
+  name lookup remains. Removed the form action and enhancement. Client validation,
+  UTC conversion, duplicate guard, inline errors, retained inputs/draft and silent
+  success behavior remain. Existing backend CORS already permits browser calls.
+  Verification: browser network checks confirm all submission POSTs go directly
+  to the API, with sequential exact payloads, MY/SG codes, UTC rollover, duplicate
+  prevention, retained failure inputs and unchanged success/draft behavior passing.
+  Production build passes; source Svelte check has zero errors and five existing warnings.
+
+- Renamed `/customer/bookings/new/customer-info` to
+  `/customer/bookings/new/contact-info` and updated Confirm navigation. This
+  supersedes the old route in the customer frontend design skill, which is
+  read-only in this workspace. SvelteKit route sync and formatting checks pass.
+
+- Added reusable customer ErrorModal: white rounded card, overlapping 80px black
+  circle, primary-yellow mdi:exclamation-thick, 22px Montserrat Bold title and
+  18px Poppins Regular description. Native dialog supports Escape and backdrop
+  dismissal. Existing selection-storage and contact submission errors now use it,
+  retaining specific messages and inputs. Incomplete Selection is the default
+  title; existing disabled Confirm behavior remains.
+
+- Updated the customer frontend design skill to require reuse of ErrorModal,
+  recording its icon, typography, configurable copy, description-driven opening,
+  error-state clearing on dismissal and preserved customer inputs. Replaced the
+  outdated inline storage-error guidance with the shared modal convention.
+
+- Changed the shared error modal backdrop to white (#FFFFFF) at 33% opacity,
+  retaining its 2px blur. Updated the customer frontend design skill accordingly.
+
+- Contact-info now saves trimmed name, country_code and mobile as JSON under
+  `customer.contact-info` in localStorage when a valid booking is submitted,
+  before API requests. Returning customers have those fields prefilled on mount.
+  Unsupported calling codes, malformed saved data and unavailable storage are
+  ignored; optional contact persistence never blocks booking submission. This
+  supersedes the earlier instruction to keep contact details only in page state.
+
+## Demo payment gateway page
+
+- Added `/demo/payment/[orderId]`, matching booking `payment_url`. Loads the demo
+  order using the configured public API URL and displays Order ID and MYR Amount
+  with Approve and Cancel side by side. Buttons PUT `paid` or `cancelled` directly
+  to the demo order API, which runs existing booking/payment webhook processing.
+- Disable both buttons while submitting and for completed orders; show the result
+  in place. Ambiguous request failures ask the user to reload to check status and
+  disable further submissions. Missing orders return 404; loading failures show
+  an error page. Contact-info submission still ignores payment_url as previously
+  requested; no automatic redirect was added.
+- Verification: production build and Wrangler type freshness check pass. Standard
+  Svelte checking remains blocked by generated-code errors (1388 errors, five
+  existing warnings); no diagnostics point to the new route's source files.
+  Browser interactions and live payment writes were not exercised.
+
+## Temporary booking conflict bypass
+
+- At the developer's request, `AssignRoom.exec` now has a literal `if (true)`
+  branch that selects the first category room by sort order/name/ID without
+  checking reservations. POST `/v1/bookings` accepts overlapping bookings,
+  including confirmed reservations and live pending holds. Set the branch to
+  `false` to restore the existing conflict-aware assignment query.
+- Category existence/business ownership and empty-category rejection remain.
+  Availability query behavior is unchanged. Updated API documentation and existing
+  booking/assignment tests to reflect the temporary behavior.
+- Verification: API TypeScript checking and all 14 test files pass locally.
+
+- Corrected the demo payment URL to `/payment/demo/{orderId}` and moved the
+  frontend page to `/payment/demo/[orderId]`. This supersedes the earlier
+  `/demo/payment` path. Updated the booking response assertion and API docs.
+  Verification: booking schema test file and production web build pass.
+
+- Styled `/payment/demo/[orderId]` with a blue Approve button and white text,
+  a borderless ghost Cancel button with black text, and a horizontally centered
+  amount value without the Amount label.
+
+- Set the demo Approve button's blue background and white text explicitly in
+  scoped CSS after the utility styling did not appear in the rendered page.
+
+- Added 12px top and bottom padding to both demo payment buttons for a more
+  spacious appearance consistent with the customer booking controls.
+
+- Changed the demo payment page to a black background with white text, including
+  the Order ID label, Cancel button and status/error messages. Removed the white
+  card background; Approve retains its blue background and white text.
+
+- Reverted the demo payment dark theme at the developer's request. Restored the
+  light slate background, white card, dark text and black ghost Cancel label;
+  retained the blue Approve button and 12px vertical button padding.
+
+- Horizontally centered the demo payment status description below the buttons,
+  including the Payment approved message.
+
+- Set the demo payment Order ID label to 12px.
+
+- Matched the Payment approved status text to the Approve button's blue (#1d4ed8).
+
+- Set the demo payment Order ID label to the muted color #848484 using scoped CSS.
+
+- Added the repository `payment-demo-design` agent skill documenting the final
+  light theme, amount/Order ID presentation, button spacing/colors and centered
+  status styling, alongside existing payment interaction behavior.
+
+- Updated `payment-demo-design` to specify the Order ID label's muted gray
+  #848484 and scoped `.order-id-label` color rule.
+
+- Successful Approve/Cancel submissions now redirect to
+  `/customer/bookings/{booking_id}`. Demo payment PUT responses include the
+  booking ID joined through the original payment; failures retain reload
+  guidance. The destination booking detail route is not implemented yet.
+  Updated the API docs, Postman assertions and payment demo skill. Verification:
+  API TypeScript checking, all 14 test files and production web build pass.
+  Ran tests with `node --import tsx --test` because the tsx CLI IPC socket is
+  restricted in the sandbox. Installed Postman CLI still lacks `status`.
+
+- Moved demo payment order GET to a browser fetch. The server loader now supplies
+  only public API configuration and order ID. Loading and inline failure/missing
+  order states hide payment controls until lookup succeeds; obsolete loads are
+  aborted on navigation. Approve/Cancel and success redirects remain unchanged.
+  Updated the payment demo skill; supersedes server-side order error handling.
+  Verification: formatting, skill validation and production web build pass.
+  Svelte checking remains blocked by generated-code diagnostics (1385 errors,
+  five existing warnings); no diagnostics target the edited source files.
+
+- After successful demo payment submission, append “Please wait...” to the
+  outcome and wait three seconds before redirecting to
+  `/customer/bookings/{reference_id}`. At the developer's explicit request the
+  route parameter now uses `reference_id`, which is the internal payment ID,
+  rather than the response's actual `booking_id`. Cancel pending redirect timers
+  on navigation. Existing completed orders still show status when loaded directly.
+
+- Added gateway-independent `/customer/payments/[paymentId]`. It fetches
+  `GET /v1/payments/{paymentId}` from the browser using the existing QueryPayment
+  use case and redirects with history replacement to
+  `/customer/bookings/{booking_id}`. Missing payments and lookup failures display
+  an error without redirecting; obsolete loads are aborted on navigation.
+- Demo Approve/Cancel now wait three seconds before redirecting to
+  `/customer/payments/{reference_id}`, retaining the outcome and “Please wait...”
+  message. This supersedes using a payment ID directly in the booking URL.
+  Booking detail page implementation remains outstanding. Added lookup contract
+  tests, API docs, Postman request and updated payment demo skill.
+  Verification: API TypeScript checking, all 14 test files, production web build
+  and skill validation pass. No live payment writes or browser checks performed.
+
+- Demo payment outcomes now show “Payment approved. Redirecting in 3...” or
+  “Payment cancelled. Redirecting in 3...”, counting down to the customer payment
+  page. Start the countdown after successful submission and on loading an
+  already paid/cancelled order; retain the three-second delay and timer cleanup.
+  Supersedes “Please wait...” and status-only display for completed orders.
+  Clarified that every non-pending status, including rejected, starts the same
+  countdown on initial lookup. Production web build passes.
+
+## Customer booking details
+
+- Implemented read-only `/customer/bookings/[booking_id]` using shared TopNav,
+  Montserrat and customer theme/status colors. The loader supplies the booking ID
+  and public API URL and loads the configured business name with a nonblocking
+  failure fallback, following the contact-info convention.
+- Browser lookup consumes the existing snake_case booking response with an
+  eight-second timeout and navigation abort/stale-result protection. Includes
+  accessible loading, missing-booking and request-failure states with reload
+  guidance, a descriptive title and noindex metadata.
+- Displays booking reference/status and all reservations' category, assigned room,
+  Malaysia date/start/end times and minute-aware duration. Cross-midnight end times
+  include their date; empty reservations have explicit guidance. Pending holds
+  display Expired after expire_at, updating while open without changing stored
+  status or polling the API. No backend or payment-flow changes.
+- Verification: formatting and production web build pass; Wrangler type freshness
+  passes. Standard Svelte checking reports 1398 generated-JavaScript errors and
+  five existing warnings; none target the new route source. A temporary check
+  disabling checkJs passes with zero errors and the same five warnings.
+- Mocked Playwright/Chrome checks cover confirmed/cancelled/live pending/expired
+  pending, expiry while open, direct entry/reload, payment-lookup arrival, client
+  navigation between booking IDs and obsolete responses, missing/null booking,
+  failed request, timeout, empty/multiple reservations, Malaysia midnight rollover
+  and 90-minute duration. Reviewed 390px/1440px screenshots and long-reference
+  wrapping; no horizontal overflow. No live booking/payment writes performed.
+
+- Restyled customer booking details with a white rounded container, muted labels
+  and black values, including status. Removed visible Booking details/Reservations
+  headings and timezone note. Each label appears above its value in a single
+  column: Booking reference, Status, then Date, Room, Time and Duration for each
+  reservation. Room includes category and assigned room; Time shows only the
+  Malaysia start time, with duration displayed separately.
+- Verification: formatting and production build pass. Mocked Chrome checks at
+  390px/1440px confirm stacked labels/values, black values, white container,
+  requested field order, start-time-only display and no horizontal overflow.
+
+- Added a horizontal divider immediately after booking status, using evenly
+  spaced pale muted round dots matching the supplied reference. Uses a semantic
+  horizontal rule with a repeating CSS radial gradient. Formatting check passes.
+
+- Reduced booking detail label-to-value spacing from 4px to zero, preserving
+  spacing between fields. Formatting check passes.
+
+- Displayed the booking reference GUID in a primary-yellow rectangle with black
+  text and internal padding. It fits its content and wraps within the container
+  on narrow screens. Formatting passes.
+
+- Updated the customer frontend design skill with the booking details page's
+  white container, stacked muted labels/black values, yellow reference rectangle,
+  dotted divider, compact spacing, start-time-only display and read-only lookup
+  behavior. Scoped the white-container exception to this route. Skill validation
+  and whitespace checks pass.
+
+- Temporary POST `/v1/bookings` response bypass always returns `payment_url: null`.
+  Booking creation, pending status and payment/gateway order creation are unchanged.
+  Restore `result.payment_url` in the controller to remove the bypass. Updated
+  API documentation and booking/payment workflow assertions.
+
+## Admin booking day grid
+
+- Added read-only `/admin/bookings` with a neutral white spreadsheet grid,
+  physical room rows and 120px hourly columns. One native date input supports
+  past/future dates, defaults to today in Asia/Kuala_Lumpur, and persists the
+  selected date in the URL (missing/invalid dates redirect to today's date).
+  Uses existing public API/business configuration defaults and exactly one
+  `QUERY /v1/bookings` per selected date, without business/room/reservation calls.
+- Reworked the copied `QueryBookings` into `query(businessId, date)`; left
+  `QueryBooking` unchanged. Two direct SQL reads return all physical rooms and
+  matching booking/reservation data. Ownership follows physical room → current
+  category → business; reservation category details retain the requested category.
+  Malaysia calendar-day boundaries are bound as UTC with strict overlap, preserving
+  full intervals and all stored statuses. Includes unbooked rooms, deterministic
+  ordering and empty arrays; no per-booking queries or D1 metadata.
+- New public MVP `QUERY /v1/bookings` accepts only nonblank `business_id` and
+  valid `YYYY-MM-DD` `date`. Malformed JSON/bodies/dates and range/unknown filters
+  return 400. Registered dependency, documented contract and added QueryBookings
+  request/assertion to the existing Postman collection. No schema/auth changes.
+- Grid displays at least 24 hours, extending to the next whole hour after the
+  latest matching reservation end, with subsequent dates labeled. Extension
+  does not broaden the query. Previous-day starts clip at midnight with an arrow;
+  accessible labels and keyboard/touch popovers retain full reference, room,
+  actual MYT start/end and minute duration. Overlaps occupy separate lanes.
+  Status text/colors distinguish confirmed, pending, expired pending and cancelled;
+  expiry updates locally each second without polling or changing stored status.
+  Loading, explicit retry, timeout, no-room/no-booking states and abort/stale
+  response protection are included. Sticky room/time headers and keyboard/mobile
+  horizontal scrolling keep the grid usable on narrow screens.
+- Verification: API types and all 57 tests pass, including real SQLite day-query
+  isolation/order/boundary/status/history/shape/validation/CORS cases and layout
+  quarter-hour/clipping/adjacent-lane/extension/expiry boundaries. Production web
+  build passes. Standard Svelte check has 1418 generated-JavaScript errors and
+  five pre-existing warnings; a temporary source check with checkJs disabled
+  passes with zero errors and those same five warnings.
+- Chrome exercised the real controller/use case against an isolated SQLite-backed
+  HTTP API: 30px quarter hours, overlapping lanes, midnight spillover and clipping,
+  popover details, no extension-only bookings, live expiry without new requests,
+  sticky labels, 390px/1440px rendering and no page overflow, date/reload/default
+  URLs, obsolete responses, failure/retry, timeout and empty states. Reviewed
+  desktop/mobile screenshots. No live booking/payment data or remote D1 used.
+- Saved Postman QueryBookings request passed against the isolated local HTTP API
+  (200 and response-array assertion). CLI 1.73.0 has no `status` command; no cloud
+  publication/authentication was needed or performed.
+
+- Restyled `/admin/bookings` to match the customer theme at the developer's
+  request: black background, white text, Montserrat, dark sticky headers,
+  muted category labels, yellow focus/scrollbar accents and dark date controls.
+  Reservation blocks retain distinct status tints/borders with white text;
+  detail popovers and retry controls now use the same dark palette. Removed
+  the visible Malaysia time note and the status legend/instruction paragraph.
+  This supersedes the original light-grid presentation. Production web build
+  passes; Chrome confirms removed copy, theme colors/font, white block text
+  and mobile layout without page overflow.
+
+- Confirmed admin booking blocks now use solid primary yellow (#FFF000) with
+  black text and a matching yellow border, superseding their green tint/white text.
+- Admin grid now begins at the earliest matching reservation's hour rounded down
+  (10:15 starts at 10:00). Previous-day continuations still clip at midnight;
+  empty days start at midnight. Blocks use this display origin, retaining 120px
+  hours and overlap lanes. At least 24 hours remain visible; next-day labels now
+  follow actual midnight rather than column index. The API day filter is unchanged.
+- Verification: three layout regression tests and production web build pass.
+  Chrome confirms primary-yellow/black confirmed blocks, 10:00 initial header
+  for a 10:15 start, 30px offset/90px width to 11:00, next-day midnight label
+  and mobile scrolling without page overflow.
+
+- Admin booking grid cards now display only customer name and customer phone on
+  two lines, replacing the abbreviated booking reference/status and continuation
+  arrow. Full booking/status/time details remain available in the popover and
+  accessible label, now including customer contact details. Existing status colors
+  and grid geometry remain unchanged; long contact text truncates within blocks.
+- `QUERY /v1/bookings` now joins customer records and includes `customer_name`
+  and `customer_phone` per booking, retaining one browser query per selected date.
+  Updated API documentation, saved Postman contract assertions and SQLite response
+  coverage. Verification: API TypeScript checking, all 16 test files and production
+  Vite build pass (five existing Svelte warnings). Postman CLI has no `status`
+  command. No live writes or browser verification performed.
+
+- Admin grid now presents stored booking statuses directly: pending remains
+  pending after its hold expires. Removed the derived expired pending label,
+  expired styling and expiry timer from this page. Cards retain customer name
+  and phone only; status remains in the details. Backend hold expiry behavior
+  and customer booking details are unchanged. Removed obsolete derivation test
+  assertions. Admin layout tests, formatting and production web build pass.
+
+- Clarified admin visibility: display pending bookings only while their hold is
+  valid; hide the entire booking once current time reaches `expire_at`. This
+  supersedes the earlier note about retaining expired pending cards.
+- `QueryBookings` now filters expired pending holds in SQL using the current UTC
+  timestamp, independent of the selected reservation date. Other statuses, room
+  roster and stored booking status remain unchanged. The admin grid also removes
+  pending cards locally within one second of expiry while open, with no polling;
+  its empty state reflects visible bookings. No Expired label is displayed.
+- Updated API docs and saved Postman description. SQLite tests cover live holds,
+  exact expiry and elapsed expiry, retained confirmed/cancelled bookings, room
+  roster and unchanged stored pending status. Layout tests cover disappearance
+  at expiry and empty rooms. API types, all 16 test files and production web build
+  pass. Installed Postman CLI still lacks `status`; no live data writes performed.
+
+- Admin bookings date filter now displays English `ccc, dd LLL yyyy` (for
+  example, Thu, 12 Nov 2026) over the native date picker, retaining ISO date
+  values for navigation and queries. Table hour headers now show only `HH:mm`,
+  removing dates at the first column and midnight.
+- Removed the admin date control's yellow focus-within outline so clicking the
+  date picker retains its muted border.
+- Admin bookings now reuses customer `TopNav` above the grid, retaining its
+  business name, dark styling/shadow, desktop New Reservation link and mobile
+  hamburger menu/overlay dismissal behavior. Business name loads from the
+  configured business endpoint with a nonblocking failure fallback. This adds
+  a business lookup alongside the existing single booking query per date.
+- Removed the visible Bookings heading from the admin bookings page; date
+  controls now follow the top navigation directly.
+- Superseding URL date persistence: admin bookings initializes today's Malaysia
+  date in onMount and keeps date selection in component state. Removed server
+  date redirects and query parsing; changing the filter leaves the URL alone.
+  The booking query waits for the initial mounted date.
+
+- Customer `/customer/bookings/new` now hides starts earlier than the current
+  time, preserving the existing 15-minute intervals: at 14:27 MYT, the first
+  possible start is 14:30. Server availability filters past starts and the page
+  removes elapsed starts every second while open, reusing selection adjustment
+  and empty-state behavior. Future dates retain their full opening hours.
+- Availability regression checks cover 14:27, the exact 14:30 boundary, elapsed
+  starts, closing time and future dates; all customer availability tests pass.
+
+
+## Racing quantity booking (12 Nov 2026)
+
+Racing quantity booking: show Select Quantity between Room and Time only for exact acronym RACING. Use duration stepper styling, number 1–4, reset on category changes and retain across dates. Filter times/durations by continuously available machine counts; keep quantity controls visible with no eligible times and disable Confirm. Save optional quantity only for Racing, including 1; preserve older drafts. Contact summary shows category × quantity; POST includes quantity only when present. A 409 shows availability guidance and retains contact details.
+Optional quantity must be an integer from 1–4 (omission defaults to 1); non-RACING categories accept only 1 or omission. The server resolves category ownership/acronym. RACING assigns distinct machines continuously free for the full interval, ordered by sort order/name/ID, even for quantity 1. Confirmed and unexpired pending bookings block overlaps; adjacent intervals, cancelled bookings and expired holds do not. Insufficient capacity returns 409 before writes. One booking has N reservation rows and one unchanged upfront payment flow. Other categories retain the temporary assignment bypass. The response still temporarily returns payment_url: null. Concurrency protection and atomicity remain deferred.
+Migration 0016 adds ST3 R1–R4 locally; no stored quantity or pricing multiplier.
+
+Verification: 63 API/SQLite/web-utility tests pass; API type checking, web build,
+and changed frontend Prettier checks pass. Mobile (390px) and desktop (1440px)
+browser checks cover section order, Racing-only visibility, quantity limits,
+category reset/date retention, draft summary/submitted quantity and 409 contact
+retention. A temporary local reservation verified unavailable-quantity controls
+and recovery; the fixture was removed. Local D1 applied pending 0015 and new
+0016; R1–R4 and PRAGMA foreign_key_check verified. No remote migrations applied.
+The existing full web check reports 1423 generated .svelte-kit JavaScript errors
+and five unrelated shared-form warnings; changed source files have no errors.
+Installed Postman CLI does not support the skill's `postman status` command;
+the saved collection was updated locally without publishing.
+
+- Temporarily bypassed Racing room overlap checks in `AssignRoom`, extending the
+  existing non-Racing bypass. Existing reservations no longer prevent booking
+  assignment. Quantity validation, distinct machines per booking and physical
+  room count checks remain. Restore Racing checks by setting
+  `bypassRoomConflicts` to false. Customer slot filtering remains unchanged.
+
+- Moved the temporary payment bypass into `CreateBooking`: `bypassUpfrontPayment`
+  skips the configured policy and treats upfront payment as unnecessary. New
+  bookings confirm immediately, create no payment/gateway orders and return a
+  naturally null payment URL. The controller returns the use case URL unchanged.
+  Set `bypassUpfrontPayment` to false to restore normal policy handling. This
+  supersedes the controller-only URL bypass; a zero business fee would still
+  incur the gateway fee and require payment.
+
+- Contact-info submission now reads the successful booking response and navigates
+  directly to `/customer/bookings/{booking_id}` when `payment_url` is null.
+  A nonempty payment URL redirects to payment instead. Invalid response fields
+  show recovery guidance; existing contact retention and 409 handling remain.
+
+- Removed the global favicon link and unused favicon ICO/SVG assets.
+
+- Added `/admin/payments` with the shared dark TopNav, configured business and
+  Malaysia date initialized on mount. Date selection stays in component state.
+  Shows every stored payment row with Malaysia date/time, customer contact,
+  RM amount to two decimals and stored status. Opaque sticky rightmost Actions
+  cells keep same-tab View links to customer booking details visible on scroll.
+- Added `QueryPayments` and public MVP `QUERY /v1/payments`, requiring only
+  business_id and strict YYYY-MM-DD date. Filters payment creation using Malaysia
+  midnight inclusive/next midnight exclusive in UTC; sorts created_at DESC, id
+  DESC. EXISTS scopes through reservations, assigned physical rooms and current
+  categories without duplicating multi-room payments. Empty matches return [].
+  Payment history/statuses remain intact. Updated API docs and local Postman
+  collection; no schema or payment-flow changes.
+- Verification: API type checking and all 65 tests pass, including SQLite payment
+  response shape/history, ordering/ties, business isolation/current room scope,
+  multiple reservations, day boundaries, empty results, validation and QUERY CORS.
+  Final production web build and changed frontend formatting pass. Chrome checks
+  with intercepted payment responses pass at 1440px/390px: sticky Actions and no
+  page overflow, Malaysia/RM formatting, date state, empty/error/retry, timeout,
+  stale response protection and same-tab View navigation. Reviewed screenshots.
+  Five pre-existing shared-form Svelte warnings remain. Postman CLI has no status
+  command; collection updated locally, without cloud publishing or live writes.
+
+- Shared TopNav now detects `/admin` routes and displays Bookings
+  (`/admin/bookings`), Payments (`/admin/payments`), then New Reservation
+  (`/customer/bookings/new`) in both desktop navigation and the mobile menu.
+  Customer routes retain their existing New Reservation menu. Production web
+  build and formatting pass; Chrome verifies both admin pages at desktop/mobile
+  widths, link order/destinations, menu dismissal on navigation, no mobile page
+  overflow and the customer menu.
+
+- Replaced admin payments' visible View text/button styling with a 24px
+  `mdi:eye` icon in primary yellow and no border. Retained the accessible View
+  booking label, keyboard focus outline and same-tab booking link. Changed-file
+  formatting, production web build and diff whitespace checks pass.
+
+- Customer booking details now group Racing machines with the same requested
+  category ID and exact start/end interval into one reservation summary, showing
+  `Racing × 4 · R1, R2, R3, R4` rather than repeating Date/Room/Time/Duration four
+  times. Single Racing machines show × 1. Other categories and different intervals
+  stay separate; stored/API reservation rows remain unchanged.
+- Verification: all 67 tests pass, including grouping, single-machine, different
+  category/interval and empty-result regression cases. Changed frontend formatting,
+  production web build and diff checks pass. Chrome with an intercepted booking
+  response confirms one date/time/duration summary and all four machine names at
+  1440px and 390px without page overflow.
+
+- Updated date picker controls on `/admin/payments` and `/admin/bookings` to
+  use no border, primary-yellow backgrounds and black text. Preserved formatted
+  dates and native date input interaction, using the light color scheme. Added
+  the `admin-frontend-design` agent skill to retain this convention.
+
+- Root `/` now redirects to `/customer/bookings/new` with HTTP 307, replacing
+  the previous `/info` destination.
+
+- Admin booking room roster now sorts by category sort_order, then physical
+  room sort_order, with category name/ID and room name/ID as tie-breakers. This keeps Racing R1–R4 sequential after
+  VIP instead of interleaving categories with overlapping room sort orders.

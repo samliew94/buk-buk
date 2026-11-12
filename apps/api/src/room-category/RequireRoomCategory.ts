@@ -5,11 +5,12 @@ export class RequireRoomCategory {
   async exec(id: Guid, businessId?: Guid) {
     const row = await this._d1
       .prepare(
-        `SELECT id FROM room_category WHERE id = ? ${businessId ? 'AND business_id = ?' : ''}`,
+        `SELECT id, acronym FROM room_category WHERE id = ? ${businessId ? 'AND business_id = ?' : ''}`,
       )
       .bind(id.value, ...(businessId ? [businessId.value] : []))
-      .first()
+      .first<{ id: string; acronym: string | null }>()
     if (!row)
       throw new NotFoundError('room category not found | id: ' + id.value)
+    return row
   }
 }

@@ -2,7 +2,7 @@
   "info": {
     "name": "api",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
-    "description": "Booking API local collection. Set url and business_id. QueryRoomCategories -> select room_category_id -> CreateCustomer -> QueryReservations -> CreateBooking -> QueryBooking. Staff fixture: CreateBusiness -> CreateRoomCategory -> CreateRoom. Booking assigns one physical room automatically. Date reservation queries include overlapping intervals; range queries retain contained intervals. All reservation queries require business_id. Payment flow and alternatives remain as documented on individual requests. Concurrency, atomicity, finalized payment enforcement and late-payment policies are deferred. Do not run alternative payment outcomes on the same booking. No credentials are exported."
+    "description": "Booking API local collection. Set url and business_id. QueryRoomCategories -> select room_category_id -> CreateCustomer -> QueryReservations -> CreateBooking -> QueryBooking. Staff fixture: CreateBusiness -> CreateRoomCategory -> CreateRoom. Optional quantity must be an integer from 1\u20134 (omission defaults to 1); non-RACING categories accept only 1 or omission. The server resolves category ownership/acronym. RACING assigns distinct machines continuously free for the full interval, ordered by sort order/name/ID, even for quantity 1. Confirmed and unexpired pending bookings block overlaps; adjacent intervals, cancelled bookings and expired holds do not. Insufficient capacity returns 409 before writes. One booking has N reservation rows and one unchanged upfront payment flow. Other categories retain the temporary assignment bypass. The response still temporarily returns payment_url: null. Concurrency protection and atomicity remain deferred. Date reservation queries include overlapping intervals; range queries retain contained intervals. All reservation queries require business_id. Payment flow and alternatives remain as documented on individual requests. Concurrency, atomicity, finalized payment enforcement and late-payment policies are deferred. Do not run alternative payment outcomes on the same booking. No credentials are exported."
   },
   "auth": {
     "type": "noauth"
@@ -778,13 +778,13 @@
               }
             ],
             "url": "{{url}}/v1/bookings",
-            "description": "Requests one category and exact interval. Category must belong to business (404). Assigns the first continuously free physical room by sort order, name, ID. Unavailable returns 409 before writes. Positive minute durations remain supported. Returns booking_id and payment_url; holds expire after 10 minutes.",
+            "description": "Optional quantity must be an integer from 1\u20134 (omission defaults to 1); non-RACING categories accept only 1 or omission. The server resolves category ownership/acronym. RACING assigns distinct machines continuously free for the full interval, ordered by sort order/name/ID, even for quantity 1. Confirmed and unexpired pending bookings block overlaps; adjacent intervals, cancelled bookings and expired holds do not. Insufficient capacity returns 409 before writes. One booking has N reservation rows and one unchanged upfront payment flow. Other categories retain the temporary assignment bypass. The response still temporarily returns payment_url: null. Concurrency protection and atomicity remain deferred.",
             "auth": {
               "type": "noauth"
             },
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"business_id\": \"{{business_id}}\",\n  \"customer_id\": \"{{customer_id}}\",\n  \"from\": \"{{bookingFrom}}\",\n  \"duration\": 60,\n  \"room_category_id\": \"{{room_category_id}}\"\n}",
+              "raw": "{\n  \"business_id\": \"{{business_id}}\",\n  \"customer_id\": \"{{customer_id}}\",\n  \"from\": \"{{bookingFrom}}\",\n  \"duration\": 60,\n  \"room_category_id\": \"{{room_category_id}}\",\n  \"quantity\": 1\n}",
               "options": {
                 "raw": {
                   "language": "json"
@@ -837,6 +837,50 @@
               }
             }
           ]
+        },
+        {
+          "name": "QueryBookings",
+          "request": {
+            "method": "QUERY",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"business_id\": \"{{business_id}}\",\n  \"date\": \"2026-11-12\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{url}}/v1/bookings",
+            "description": "Malaysia calendar day overlaps. Returns rooms (including unbooked rooms) and bookings with customer_name, customer_phone and matching full reservation intervals. Pending bookings are included only while expire_at is later than the current UTC time. Expired pending holds are excluded; other statuses are unchanged. Rejects range filters."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Day query returns rooms and bookings\", function () {",
+                  "  pm.response.to.have.status(200);",
+                  "  const data = pm.response.json();",
+                  "  pm.expect(Object.keys(data).sort()).to.eql([\"bookings\", \"rooms\"]);",
+                  "  pm.expect(data.rooms).to.be.an(\"array\");",
+                  "  pm.expect(data.bookings).to.be.an(\"array\");",
+                  "  data.bookings.forEach(function (booking) {",
+                  "    pm.expect(booking.customer_name).to.be.a(\"string\");",
+                  "    pm.expect(booking.customer_phone).to.be.a(\"string\");",
+                  "  });",
+                  "});"
+                ]
+              }
+            }
+          ]
         }
       ]
     },
@@ -881,7 +925,7 @@
               }
             ],
             "url": "{{url}}/v1/demo-payment-orders/{{order_id}}",
-            "description": "Updates the demo order and invokes the webhook internally. Records payment and confirms booking. Choose one outcome for each fresh booking; duplicate/finalized-outcome enforcement is deferred. This request writes data.",
+            "description": "Updates the demo order and invokes the webhook internally. Records payment and confirms booking. Choose one outcome for each fresh booking; duplicate/finalized-outcome enforcement is deferred. This request writes data. Returns booking_id for the customer booking redirect.",
             "auth": {
               "type": "noauth"
             },
@@ -901,7 +945,8 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));"
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Returns booking ID\", () => pm.expect(pm.response.json().booking_id).to.eql(pm.collectionVariables.get(\"booking_id\")));"
                 ]
               }
             }
@@ -918,7 +963,7 @@
               }
             ],
             "url": "{{url}}/v1/demo-payment-orders/{{order_id}}",
-            "description": "Updates the demo order and invokes the webhook internally. Records payment outcome and cancels booking. Choose one outcome for each fresh booking; duplicate/finalized-outcome enforcement is deferred. This request writes data.",
+            "description": "Updates the demo order and invokes the webhook internally. Records payment outcome and cancels booking. Choose one outcome for each fresh booking; duplicate/finalized-outcome enforcement is deferred. This request writes data. Returns booking_id for the customer booking redirect.",
             "auth": {
               "type": "noauth"
             },
@@ -938,7 +983,8 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));"
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Returns booking ID\", () => pm.expect(pm.response.json().booking_id).to.eql(pm.collectionVariables.get(\"booking_id\")));"
                 ]
               }
             }
@@ -955,7 +1001,7 @@
               }
             ],
             "url": "{{url}}/v1/demo-payment-orders/{{order_id}}",
-            "description": "Updates the demo order and invokes the webhook internally. Records payment outcome and cancels booking. Choose one outcome for each fresh booking; duplicate/finalized-outcome enforcement is deferred. This request writes data.",
+            "description": "Updates the demo order and invokes the webhook internally. Records payment outcome and cancels booking. Choose one outcome for each fresh booking; duplicate/finalized-outcome enforcement is deferred. This request writes data. Returns booking_id for the customer booking redirect.",
             "auth": {
               "type": "noauth"
             },
@@ -975,7 +1021,8 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
-                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));"
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Returns booking ID\", () => pm.expect(pm.response.json().booking_id).to.eql(pm.collectionVariables.get(\"booking_id\")));"
                 ]
               }
             }
@@ -1125,6 +1172,74 @@
               }
             }
           ]
+        }
+      ]
+    },
+    {
+      "name": "Payments",
+      "item": [
+        {
+          "name": "QueryPayment",
+          "request": {
+            "method": "GET",
+            "url": "{{url}}/v1/payments/{{reference_id}}",
+            "description": "Gateway-independent internal payment lookup. Returns id, booking_id and price, or null if missing.",
+            "auth": {
+              "type": "noauth"
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "const payment = pm.response.json();",
+                  "if (payment) pm.test(\"Booking ID\", () => pm.expect(payment.booking_id).to.eql(pm.collectionVariables.get(\"booking_id\")));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "QueryPayments",
+      "request": {
+        "method": "QUERY",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"business_id\": \"{{business_id}}\",\n  \"date\": \"2026-11-12\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        },
+        "url": "{{url}}/v1/payments",
+        "description": "All stored payment rows for the Malaysia creation day, newest first by created_at then id. Business scope follows assigned rooms and current categories; no duplicates."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Payment history contract\", function () {",
+              "  pm.response.to.have.status(200);",
+              "  const rows = pm.response.json();",
+              "  pm.expect(rows).to.be.an(\"array\");",
+              "  rows.forEach(row => pm.expect(row).to.have.all.keys(\"id\", \"booking_id\", \"created_at\", \"price\", \"status\", \"customer_name\", \"customer_phone\"));",
+              "});"
+            ]
+          }
         }
       ]
     }

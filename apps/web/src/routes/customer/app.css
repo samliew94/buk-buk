@@ -76,6 +76,10 @@
 	@apply border-0 bg-booking-primary text-booking-black;
 }
 
+.booking-button[data-variant='primary']:disabled {
+	@apply cursor-not-allowed bg-booking-primary/30 opacity-100;
+}
+
 .booking-button[data-variant='secondary'] {
 	@apply border border-booking-primary bg-transparent text-booking-white;
 }

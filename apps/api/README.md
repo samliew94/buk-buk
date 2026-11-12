@@ -10,10 +10,12 @@ All request and response JSON object keys use snake_case, including records with
 
 | Method | Path | Access | Response |
 | --- | --- | --- | --- |
+| GET | `/v1/payments/:paymentId` | Public | 200 with `{ "id", "booking_id", "price" }`, or `null` if missing. Gateway-independent internal payment lookup. |
+| QUERY | `/v1/bookings` | Public, JSON `{ "business_id": "...", "date": "2026-11-12" }` | 200 with `{ "rooms": [], "bookings": [] }`; Malaysia calendar day overlaps, excluding expired pending holds |
 | GET | `/v1/bookings/:bookingId` | Public | 200 with `{ "id", "customer_id", "status", "created_at", "expire_at", "reservations" }`, or `null` if missing |
 | GET | `/v1/demo-payment-orders/:orderId` | Public | 200 with `{ "id", "reference_id", "price", "status", "created_at" }`, or `null` if missing |
 | GET | `/` | Public | `{ "name": "booking-api", "status": "ok" }` |
-| PUT | `/v1/demo-payment-orders/:orderId` | Public, JSON `{ "status": "paid" }` | 200 with `{ "id", "reference_id", "price", "status" }`; also accepts `cancelled`/`rejected`. Unknown order is 404; invalid body/status is 400. |
+| PUT | `/v1/demo-payment-orders/:orderId` | Public, JSON `{ "status": "paid" }` | 200 with `{ "id", "reference_id", "booking_id", "price", "status" }`; also accepts `cancelled`/`rejected`. Unknown order is 404; invalid body/status is 400. The demo page displays the outcome with a visible “Redirecting in 3...” countdown and redirects after three seconds to `/customer/payments/{reference_id}` after either successful button submission. |
 | POST | `/webhook/payment/demo` | Public, JSON `{ "order_id": "...", "reference_id": "...", "status": "paid" }` | 204 with no body; invalid payloads return 400. Demo statuses: `paid`, `cancelled`, `rejected`. Success inserts a new paid payment row, retains the original pending row, then confirms its booking; unknown payment IDs return 404. Cancelled/rejected outcomes insert a new payment row with the reported status, retain the pending row, then cancel the booking. |
 | GET | `/v1/businesses/:id` | Public | `{ "id", "name", "open_at", "close_at" }`, or 404 if missing |
 | PUT | `/v1/businesses/:id` | Public, JSON `{ "name": "..." }` | Updated `{ "id": "...", "name": "..." }`; invalid input is 400, missing business is 404 |
@@ -30,7 +32,7 @@ All request and response JSON object keys use snake_case, including records with
 | QUERY | `/v1/room-category-rental-fees` | Public, JSON `{ "room_category_id": "..." }` | One fee for the category, or `null` if none matches |
 | POST | `/v1/room-category-rental-fees` | Public, fee JSON below | 201 with the created fee; invalid input is 400 |
 | PUT | `/v1/room-category-rental-fees/:id` | Public, fee JSON below | 200 with the updated fee; invalid input is 400, missing fee is 404 |
-| POST | `/v1/bookings` | Public, booking JSON below | 201 with `{ "booking_id": "...", "payment_url": null }` or a payment URL; invalid input is 400 |
+| POST | `/v1/bookings` | Public, booking JSON below | 201 with `{ "booking_id": "...", "payment_url": null }` (temporary upfront payment bypass); invalid input is 400 |
 | QUERY | `/v1/reservations` | Public, JSON `{ "business_id": "...", "from": "...", "to": "..." }` or `{ "business_id": "...", "date": "2025-12-31T16:00:00Z" }` | 200 with an array of booking records; invalid input is 400 |
 | POST | `/v1/auth/login` | Public, JSON `{ "password": "..." }` | `{ "token": "...", "expires_at": "..." }` |
 | GET | `/v1/auth/me` | Bearer JWT | `{ "id": "...", "role": "admin" or "user" }` |
@@ -46,7 +48,7 @@ Admin login retains the original shared-password model with generic naming. Ther
 
 ## Dependency injection
 
-Booking creation accepts `{ "business_id": "business-1", "customer_id": "customer-1", "room_category_id": "category-1", "from": "2026-11-11T07:00:00.000Z", "duration": 90 }`. Duration remains any finite positive number of minutes. A missing or foreign category returns 404. The first continuously available room ordered by sort order/name/ID is assigned. Empty or unavailable categories return 409 before writes. Reservations store both the requested category and assigned room. Booking/payment behavior remains unchanged.
+Booking creation accepts `{ "business_id": "business-1", "customer_id": "customer-1", "room_category_id": "category-1", "from": "2026-11-11T07:00:00.000Z", "duration": 90 }`. Duration remains any finite positive number of minutes. A missing or foreign category returns 404. Optional quantity must be an integer from 1–4 (omission defaults to 1); non-RACING categories accept only 1 or omission. The server resolves category ownership/acronym. RACING assigns distinct machines continuously free for the full interval, ordered by sort order/name/ID, even for quantity 1. Confirmed and unexpired pending bookings block overlaps; adjacent intervals, cancelled bookings and expired holds do not. Insufficient capacity returns 409 before writes. One booking has N reservation rows and one unchanged upfront payment flow. Other categories retain the temporary assignment bypass. The response still temporarily returns payment_url: null. Concurrency protection and atomicity remain deferred.
 
 Both reservation query variants require business_id: `{ "business_id": "...", "from": "...", "to": "..." }` or `{ "business_id": "...", "date": "2026-11-10T16:00:00.000Z" }`. Responses include `id`, `room_id`, `room_category_id`, `customer_id`, `status`, `created_at`, `expire_at`, `from`, `to`. Business ownership follows assigned room → category. The stored requested category is returned. Range filtering retains `from >= lower AND to < upper`; date filtering returns all overlaps in the exact 24-hour window. Datetimes without offset use Asia/Kuala_Lumpur. Date requires UTC ISO with seconds and Z.
 
@@ -72,10 +74,68 @@ Customer writes require nonblank string `name` and `phone` values. POST generate
 
 QUERY `/v1/room-category-rental-fees` accepts `{ "room_category_id": "..." }` and returns the first fee by ID or null, including unknown categories. POST and PUT `/:id` require `{ "room_category_id": "...", "duration": 1, "price": 12.5 }` and return 201/200 with ID and those fields. Duration remains a nonnegative safe integer; price is finite and nonnegative. Missing fee updates return 404; category references rely on foreign keys. Multiple fees per category remain allowed. No quotation calculation is introduced. The former room-rental-fees routes are retired.
 
-Booking creation stores a UTC ISO expiry timestamp in `booking.expire_at`, initially 10 minutes after creation. Both reservation query methods return this stored timestamp as `expire_at`. This deadline applies to pending bookings only; confirmed bookings remain reserved. Queries include expired bookings. Clients determine expiry using pending status and current time >= `expire_at`; no `isExpired` field is returned. Stored status remains unchanged. Availability checks ignore expired pending bookings; confirmed bookings continue to block rooms.
+Booking creation stores a UTC ISO expiry timestamp in `booking.expire_at`, initially 10 minutes after creation. Both reservation query methods return this stored timestamp as `expire_at`. This deadline applies to pending bookings only; confirmed bookings remain reserved. Reservation queries include expired bookings; the booking day query excludes expired pending holds. Clients determine expiry using pending status and current time >= `expire_at`; no `isExpired` field is returned. Stored status remains unchanged. Availability checks ignore expired pending bookings; confirmed bookings continue to block rooms.
 
 Demo webhook IDs are required nonblank strings: `order_id` is the gateway `demo_payment_order.id`, and `reference_id` is our internal `payment.id` (stored by the demo gateway as `reference_id`). The handler resolves the payment using `reference_id`; it does not query or update the gateway database using `order_id`.
 
-To simulate a guest payment through the API, take the order ID from booking creation's `/demo/payment/{order_id}` URL and call `PUT /v1/demo-payment-orders/{order_id}` with `{"status":"paid"}`. The gateway updates its stored order and invokes the existing demo webhook handler in process with `{order_id, reference_id, status}`. A successful response means the payment was recorded and the booking confirmed. No outbound HTTP callback is sent. Cancelled/rejected outcomes cancel the booking. Atomicity, duplicate handling, and finalized-outcome enforcement remain deferred; if webhook processing fails, the gateway order may already have been updated. The demo payment page is not wired by this change.
+To simulate a guest payment through the API, take the order ID from booking creation's `/payment/demo/{order_id}` URL and call `PUT /v1/demo-payment-orders/{order_id}` with `{"status":"paid"}`. The gateway updates its stored order and invokes the existing demo webhook handler in process with `{order_id, reference_id, status}`. A successful response means the payment was recorded and the booking confirmed. No outbound HTTP callback is sent. Cancelled/rejected outcomes cancel the booking. Atomicity, duplicate handling, and finalized-outcome enforcement remain deferred; if webhook processing fails, the gateway order may already have been updated. The demo payment page submits either outcome and displays the outcome with a visible “Redirecting in 3...” countdown and redirects after three seconds to `/customer/payments/{reference_id}` on API success (the developer-requested route value is the internal payment ID).
 
 Booking lookup includes a `reservations` array (empty when there are none). Each entry contains `id`, `room_id`, `room_name`, `room_category_id`, `room_category_name`, `room_category_acronym`, `from`, `to`, and `duration` in minutes, calculated from the stored UTC timestamps without rounding. Entries are ordered by start time, room sort order, room name, then reservation ID. Room names reflect the current room record.
+
+The gateway-independent `/customer/payments/{payment_id}` page fetches `GET /v1/payments/{payment_id}` in the browser, then redirects to `/customer/bookings/{booking_id}` using the returned booking ID. Failed or missing lookups display an error without redirecting.
+
+Temporary upfront payment bypass: `bypassUpfrontPayment = true` in `CreateBooking.ts` skips the configured policy. New bookings are confirmed immediately with no payment or gateway order and `payment_url: null`. The controller returns the use case URL unchanged. Set the flag to false to restore normal payment handling. A zero business fee alone still incurs the RM1.50 gateway fee.
+
+## Admin booking day grid
+
+`QUERY /v1/bookings` accepts only `business_id` (nonblank string) and `date`
+(strict valid `YYYY-MM-DD`, interpreted in Asia/Kuala_Lumpur). Invalid JSON,
+non-object bodies, missing/invalid fields and range/unknown filters return 400.
+The interval is Malaysia midnight to the next midnight, bound as UTC ISO strings:
+reservation start < day end and reservation end > day start. Exact touching
+boundaries are excluded. No parent existence lookup is required; an unknown
+business returns empty arrays.
+
+The response contains all physical `rooms` for the business, including unbooked
+rooms, ordered by category sort_order, then room sort_order, with category name/ID and room name/ID as tie-breakers. Room fields are `id`, `room_category_id`,
+`name`, `sort_order`, `room_category_name`, `room_category_acronym`. `bookings`
+contains the existing single-booking lookup fields and only matching
+`reservations`, with their existing room/category fields and duration in minutes.
+Full intervals are retained. Ownership follows the current physical room category;
+reservation category information describes the stored requested category.
+Bookings/reservations are ordered by reservation start, room sort_order/name/id,
+then reservation ID, with bookings in first-match order. Pending bookings are
+returned only while `expire_at` is later than the current UTC time; expired pending
+holds are excluded. Other stored statuses are returned unchanged.
+Two direct SQL reads supply the result without per-booking queries or D1 metadata.
+The existing GET booking lookup remains unchanged.
+
+Read-only `/admin/bookings` uses the configured public API/business ID and one
+query per selected date. The URL retains `?date=YYYY-MM-DD`; missing/invalid dates
+default to today in Malaysia. The grid displays at least 24 hours, extending to
+the whole hour after the latest matched reservation ends without querying the
+extension. Blocks clip at selected-day midnight and stack overlaps in lanes.
+Pending cards also disappear locally when their hold expires while the page is
+open, without another API request. This route follows the current public MVP
+access convention.
+
+The day query `QUERY /v1/bookings` includes `customer_name` and `customer_phone` on each booking, joined from its customer record, for the admin grid cards.
+
+Temporary room conflict bypass: booking assignment ignores existing reservations for all categories, including RACING. Machines remain distinct within each booking and quantity cannot exceed the physical room count. Set `bypassRoomConflicts` to `false` in `AssignRoom.ts` to restore Racing checks. Customer time-slot availability filtering remains active.
+
+## Admin payment history
+
+`QUERY /v1/payments` accepts only `{ "business_id": "...", "date": "2026-11-12" }`.
+Both fields are required; malformed JSON, non-object bodies, unsupported fields,
+blank business IDs and invalid/non-YYYY-MM-DD dates return 400. Public MVP access
+matches bookings. Returns an array of `{ id, booking_id, created_at, price, status,
+customer_name, customer_phone }`, or `[]`. Every stored payment row/status is
+retained, including pending history for completed or cancelled bookings.
+Filter payment creation within the selected Malaysia day (inclusive midnight,
+exclusive next midnight converted to UTC); order by created_at DESC, id DESC.
+Business ownership follows reservations through assigned physical rooms and their
+current categories; multiple reservations do not duplicate payments.
+
+`/admin/payments` initializes today in Malaysia time on mount and retains date
+selection in component state. The horizontally scrolling table pins View actions
+to its right edge; View opens the associated customer booking in the same tab.

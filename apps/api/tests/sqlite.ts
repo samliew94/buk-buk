@@ -31,6 +31,7 @@ export function fixture(beforeCategoryMigration = false) {
             },
             async run() {
               return {
+                success: true,
                 meta: {
                   changes: Number(db.prepare(sql).run(...values).changes),
                 },

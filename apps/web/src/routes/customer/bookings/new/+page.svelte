@@ -1,17 +1,30 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
 	import { retainDuration } from '$lib/customer/availability';
 	import Button from '$lib/customer/Button.svelte';
+	import TopNav from '$lib/customer/TopNav.svelte';
+	import ErrorModal from '$lib/customer/ErrorModal.svelte';
+	import { BOOKING_DRAFT_KEY } from '$lib/customer/booking-draft';
 	import TimeButton from '$lib/customer/TimeButton.svelte';
 	import type { PageProps } from './$types';
 
 	let { data }: PageProps = $props();
 	let selection = $state<{ time: string; roomCategoryId: string }>();
 	let duration = $state(60);
+	let quantity = $state(1);
 	let adjustment = $state('');
 	let expandedKey = $state<string>();
+	let storageError = $state('');
+	let now = $state(0);
+	onMount(() => {
+		now = Date.now();
+		const timer = setInterval(() => (now = Date.now()), 1000);
+		return () => clearInterval(timer);
+	});
+	let availableSlots = $derived(data.slots.filter((slot) => slot.start >= now));
 	let categories = $derived(
-		data.slots
+		availableSlots
 			.filter(
 				(slot, index, slots) =>
 					slots.findIndex((other) => other.category.id === slot.category.id) === index
@@ -21,7 +34,25 @@
 	let category = $derived(
 		categories.find((item) => item.id === selection?.roomCategoryId) ?? categories[0]
 	);
-	let timeSlots = $derived(data.slots.filter((slot) => slot.category.id === category?.id));
+	let quantityCategoryId: string | undefined;
+	$effect(() => {
+		if (quantityCategoryId !== category?.id) {
+			quantityCategoryId = category?.id;
+			quantity = 1;
+		}
+	});
+	let timeSlots = $derived(
+		availableSlots
+			.filter((slot) => slot.category.id === category?.id)
+			.map((slot) => ({
+				...slot,
+				durations: slot.durations.filter(
+					(minutes) =>
+						(slot.capacity[minutes] ?? 0) >= (category?.acronym === 'RACING' ? quantity : 1)
+				)
+			}))
+			.filter((slot) => slot.durations.includes(60))
+	);
 	let active = $derived(timeSlots.find((slot) => slot.time === selection?.time) ?? timeSlots[0]);
 	let viewKey = $derived(`${data.date}/${category?.id}`);
 	let expanded = $derived(expandedKey === viewKey);
@@ -49,6 +80,36 @@
 	function durationLabel(minutes: number) {
 		return `${minutes / 60} ${minutes === 60 ? 'hour' : 'hours'}`;
 	}
+	let canConfirm = $derived(
+		!data.message &&
+			data.days.some((day) => day.date === data.date) &&
+			!!selection &&
+			!!active &&
+			selection.roomCategoryId === active.category.id &&
+			selection.time === active.time &&
+			active.durations.includes(duration)
+	);
+	async function confirm() {
+		if (!canConfirm || !active) return;
+		storageError = '';
+		try {
+			localStorage.setItem(
+				BOOKING_DRAFT_KEY,
+				JSON.stringify({
+					date: data.date,
+					room: { id: active.category.id, name: active.category.name },
+					time: active.time,
+					duration,
+					...(active.category.acronym === 'RACING' ? { quantity } : {})
+				})
+			);
+		} catch {
+			storageError =
+				'Unable to save your booking selection. Please allow browser storage and try again.';
+			return;
+		}
+		await goto('/customer/bookings/new/contact-info');
+	}
 </script>
 
 <svelte:head>
@@ -56,13 +117,7 @@
 </svelte:head>
 
 <main class="mx-auto max-w-5xl">
-	<nav
-		class="flex h-12 items-center justify-between gap-3 bg-booking-container px-5 sm:px-7"
-		aria-label="Main navigation"
-	>
-		<span class="font-semibold text-booking-white">{data.name ?? ''}</span>
-		<Button variant="ghost" icon="mdi:menu" aria-label="Open menu" class="min-h-8! px-2!" />
-	</nav>
+	<TopNav name={data.name} />
 	<section class="mt-8 overflow-hidden rounded-2xl bg-booking-container shadow-sm">
 		<div class="px-5 pt-5 sm:px-7 sm:pt-7">
 			<p class="text-[14px]! font-semibold text-booking-white">Select Date</p>
@@ -110,7 +165,7 @@
 
 		{#if data.message}
 			<p class="p-5 text-booking-warning sm:p-7" role="status">{data.message}</p>
-		{:else if active}
+		{:else if category}
 			<div>
 				<div class="p-5 sm:p-7">
 					<p class="text-[14px]! font-semibold text-booking-white">Select Room</p>
@@ -129,70 +184,102 @@
 								]}
 								aria-pressed={category?.id === item.id}
 								onclick={() => {
-									selection = { roomCategoryId: item.id, time: active.time };
+									if (item.id !== category?.id) quantity = 1;
+									selection = { roomCategoryId: item.id, time: active?.time ?? '' };
 									adjustment = '';
 								}}>{item.name}</Button
 							>
 						{/each}
 					</div>
 				</div>
-				<div class="p-5 sm:p-7">
-					<p class="text-[14px]! font-semibold text-booking-white">Select Time</p>
-					<div class="mt-4 grid grid-cols-4 gap-2 sm:grid-cols-6" aria-label="Start times">
-						{#each timeSlots as slot, index (`${slot.time}-${slot.category.id}`)}
-							{@const category = slot.category}
-							<TimeButton
-								time={slot.time}
-								aria-label={`${slot.time}, ${category.name}`}
-								selected={active.time === slot.time && active.category.id === category.id}
-								class={!expanded && timeSlots.length > 8 && index >= 7
-									? 'hidden! sm:inline-flex!'
-									: ''}
-								onclick={() => (selection = { time: slot.time, roomCategoryId: category.id })}
-							/>
-						{/each}
-						{#if !expanded && timeSlots.length > 8}
+				{#if category.acronym === 'RACING'}
+					<div class="p-5 sm:p-7">
+						<p class="text-[14px]! font-semibold text-booking-white">Select Quantity</p>
+						<div class="mt-4 flex items-center gap-4" role="group" aria-label="Booking quantity">
 							<Button
 								variant="secondary"
-								class="border-[0.5px]! border-booking-primary/30! font-poppins! text-[16px]! font-normal! text-booking-primary! sm:hidden!"
-								aria-expanded={false}
-								onclick={() => (expandedKey = viewKey)}>More</Button
+								icon="mdi:minus"
+								class="border-booking-white! hover:border-transparent! hover:bg-booking-primary! hover:text-booking-black! hover:opacity-100!"
+								aria-label="Decrease quantity"
+								disabled={quantity <= 1}
+								onclick={() => quantity--}
+							/>
+							<span class="min-w-20 text-center font-bold text-booking-primary" aria-live="polite"
+								>{quantity}</span
 							>
-						{/if}
+							<Button
+								variant="secondary"
+								icon="mdi:plus"
+								class="border-booking-white! hover:border-transparent! hover:bg-booking-primary! hover:text-booking-black! hover:opacity-100!"
+								aria-label="Increase quantity"
+								disabled={quantity >= 4}
+								onclick={() => quantity++}
+							/>
+						</div>
+					</div>{/if}
+				{#if active}
+					<div class="p-5 sm:p-7">
+						<p class="text-[14px]! font-semibold text-booking-white">Select Time</p>
+						<div class="mt-4 grid grid-cols-4 gap-2 sm:grid-cols-6" aria-label="Start times">
+							{#each timeSlots as slot, index (`${slot.time}-${slot.category.id}`)}
+								{@const category = slot.category}
+								<TimeButton
+									time={slot.time}
+									aria-label={`${slot.time}, ${category.name}`}
+									selected={active.time === slot.time && active.category.id === category.id}
+									class={!expanded && timeSlots.length > 8 && index >= 7
+										? 'hidden! sm:inline-flex!'
+										: ''}
+									onclick={() => (selection = { time: slot.time, roomCategoryId: category.id })}
+								/>
+							{/each}
+							{#if !expanded && timeSlots.length > 8}
+								<Button
+									variant="secondary"
+									class="border-[0.5px]! border-booking-primary/30! font-poppins! text-[16px]! font-normal! text-booking-primary! sm:hidden!"
+									aria-expanded={false}
+									onclick={() => (expandedKey = viewKey)}>More</Button
+								>
+							{/if}
+						</div>
 					</div>
-				</div>
 
-				<div class="p-5 sm:p-7">
-					<p class="text-[14px]! font-semibold text-booking-white">Select Duration</p>
-					<div class="mt-4 flex items-center gap-4" role="group" aria-label="Booking duration">
-						<Button
-							variant="secondary"
-							icon="mdi:minus"
-							class="border-booking-white! hover:border-transparent! hover:bg-booking-primary! hover:text-booking-black! hover:opacity-100!"
-							aria-label="Decrease duration by 1 hour"
-							disabled={duration <= 60}
-							onclick={() => {
-								duration -= 60;
-								adjustment = '';
-							}}
-						/>
-						<span class="min-w-20 text-center font-bold text-booking-primary" aria-live="polite"
-							>{durationLabel(duration)}</span
-						>
-						<Button
-							variant="secondary"
-							icon="mdi:plus"
-							class="border-booking-white! hover:border-transparent! hover:bg-booking-primary! hover:text-booking-black! hover:opacity-100!"
-							aria-label="Increase duration by 1 hour"
-							disabled={!active.durations.includes(duration + 60)}
-							onclick={() => {
-								duration += 60;
-								adjustment = '';
-							}}
-						/>
+					<div class="p-5 sm:p-7">
+						<p class="text-[14px]! font-semibold text-booking-white">Select Duration</p>
+						<div class="mt-4 flex items-center gap-4" role="group" aria-label="Booking duration">
+							<Button
+								variant="secondary"
+								icon="mdi:minus"
+								class="border-booking-white! hover:border-transparent! hover:bg-booking-primary! hover:text-booking-black! hover:opacity-100!"
+								aria-label="Decrease duration by 1 hour"
+								disabled={duration <= 60}
+								onclick={() => {
+									duration -= 60;
+									adjustment = '';
+								}}
+							/>
+							<span class="min-w-20 text-center font-bold text-booking-primary" aria-live="polite"
+								>{durationLabel(duration)}</span
+							>
+							<Button
+								variant="secondary"
+								icon="mdi:plus"
+								class="border-booking-white! hover:border-transparent! hover:bg-booking-primary! hover:text-booking-black! hover:opacity-100!"
+								aria-label="Increase duration by 1 hour"
+								disabled={!active.durations.includes(duration + 60)}
+								onclick={() => {
+									duration += 60;
+									adjustment = '';
+								}}
+							/>
+						</div>
+						<p class="mt-2 text-booking-muted" role="status">{adjustment}</p>
 					</div>
-					<p class="mt-2 text-booking-muted" role="status">{adjustment}</p>
-				</div>
+				{:else}
+					<p class="p-5 text-booking-muted sm:p-7" role="status">
+						No times are available for this quantity. Choose another quantity or date.
+					</p>
+				{/if}
 			</div>
 		{:else}
 			<p class="p-5 text-booking-muted sm:p-7" role="status">
@@ -200,6 +287,11 @@
 			</p>
 		{/if}
 	</section>
+	<ErrorModal
+		title="Unable to Save Selection"
+		description={storageError}
+		onclose={() => (storageError = '')}
+	/>
 	<div class="h-28" aria-hidden="true"></div>
 </main>
 
@@ -207,5 +299,10 @@
 	class="pointer-events-none fixed inset-x-0 bottom-0 z-50 mx-auto flex max-w-5xl justify-center rounded-t-2xl bg-booking-container pt-5 sm:justify-end sm:rounded-none sm:bg-transparent sm:pt-0"
 	style="padding-bottom: max(1.25rem, env(safe-area-inset-bottom));"
 >
-	<Button variant="primary" class="pointer-events-auto min-w-64 text-[16px]!">Confirm</Button>
+	<Button
+		variant="primary"
+		class="pointer-events-auto min-w-64 text-[16px]!"
+		disabled={!canConfirm}
+		onclick={confirm}>Confirm</Button
+	>
 </div>

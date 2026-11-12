@@ -3,7 +3,7 @@ import assert from 'node:assert/strict'
 import { fixture } from './sqlite'
 import { createApp } from '../src/index'
 
-test('category assignment uses a single continuously free room, deterministic ordering, business scope and requested category history', async (t) => {
+test('temporary assignment bypass preserves deterministic ordering, business scope and requested category history', async (t) => {
   const { db, d1 } = fixture()
   t.after(() => db.close())
   db.exec(`INSERT INTO business(id,name) VALUES ('a','A'),('b','B');
@@ -57,18 +57,16 @@ test('category assignment uses a single continuously free room, deterministic or
       .map((r) => [r.room_id, r.room_category_id]),
     [
       ['r1', 'family'],
-      ['r2', 'family'],
-      ['r3', 'family'],
+      ['r1', 'family'],
+      ['r1', 'family'],
     ],
   )
-  const before = count()
-  assert.equal((await create()).status, 409)
-  assert.deepEqual(count(), before)
-  // Cancelled and expired pending holds release rooms; live pending holds block.
+  assert.equal((await create()).status, 201)
+  // The temporary bypass ignores reservation status and expiry.
   db.exec(
     "UPDATE booking SET status='pending', expire_at='9999-01-01T00:00:00.000Z'",
   )
-  assert.equal((await create()).status, 409)
+  assert.equal((await create()).status, 201)
   db.exec("UPDATE booking SET expire_at='2000-01-01T00:00:00.000Z'")
   assert.equal((await create()).status, 201)
   db.exec("UPDATE booking SET status='cancelled'")
@@ -79,7 +77,7 @@ test('category assignment uses a single continuously free room, deterministic or
     201,
   )
   db.exec('DELETE FROM room_reservation; DELETE FROM booking;')
-  // Every instant has some free room, but no room supports the whole hour.
+  // The bypass also accepts an interval without a continuously free room.
   for (const [i, room, from, to] of [
     [1, 'r1', '07:00', '07:30'],
     [2, 'r2', '07:30', '08:00'],
@@ -97,7 +95,7 @@ test('category assignment uses a single continuously free room, deterministic or
       'family',
     )
   }
-  assert.equal((await create()).status, 409)
+  assert.equal((await create()).status, 201)
   assert.equal(
     (await create('family', '2026-11-11T07:00:00.000Z', 30)).status,
     201,

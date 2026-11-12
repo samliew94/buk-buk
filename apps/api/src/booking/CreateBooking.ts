@@ -1,3 +1,4 @@
+import { BadRequestError } from '../errors';
 import { CreatePayment } from "../payment/CreatePayment";
 import { InitiatePaymentGateway } from "../payment/InitiatePaymentGateway";
 import { QueryUpfrontPaymentPolicy } from "../payment/QueryUpfrontPaymentPolicy";
@@ -27,18 +28,24 @@ export class CreateBooking {
     customerId: Guid, 
     from: MyDateTime,
     duration: PositiveDuration, // in minutes
-    roomCategoryId: Guid) {
+    roomCategoryId: Guid, quantity?: number) {
 
       const to = from.plus(duration);
-      await this._requireRoomCategory.exec(roomCategoryId, businessId);
-      const roomId = await this._assignRoom.exec(roomCategoryId, from, to);
+      const category = await this._requireRoomCategory.exec(roomCategoryId, businessId);
+      const count = quantity === undefined ? 1 : quantity;
+      if (!Number.isInteger(count) || count < 1 || count > 4 || (category.acronym !== 'RACING' && count !== 1)) {
+        throw new BadRequestError('invalid quantity for room category | id: ' + roomCategoryId.value);
+      }
+      const roomIds = await this._assignRoom.assign(roomCategoryId, from, to, count, category.acronym === 'RACING');
 
       const now = MyDateTime.now();
 
       const bookingId = Guid.new();
 
       // is upfront payment needed by this business?
-      const upfrontPayment = await UpfrontPayment.fromRowResult(
+      // Temporary: set to false to restore the configured upfront payment policy.
+      const bypassUpfrontPayment = false;
+      const upfrontPayment = bypassUpfrontPayment ? null : await UpfrontPayment.fromRowResult(
         await this._queryUpfrontPaymentPolicy.query(businessId));
 
       // create booking record
@@ -56,7 +63,7 @@ export class CreateBooking {
           .run();
 
       // reserve room(s) - they will be blocked
-      {
+      for (const roomId of roomIds) {
         await this._reserveRooms.exec(
           bookingId,
           roomId,

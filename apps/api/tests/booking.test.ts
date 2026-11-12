@@ -29,7 +29,7 @@ function fixture(paymentUrl: string | null = null) {
   return { calls, request: (path: string, method: string, body?: string) => app.request(path, { method, body }, {}) }
 }
 
-test('POST bookings passes value objects to CreateBooking and serializes its result', async () => {
+test('POST bookings passes value objects to CreateBooking and returns the use case payment URL', async () => {
   for (const paymentUrl of [null, 'https://example.com/payment']) {
     const { request, calls } = fixture(paymentUrl)
     const response = await request('/v1/bookings', 'POST', JSON.stringify(input))

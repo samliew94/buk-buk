@@ -57,3 +57,8 @@ throw new NotFoundError('business not found | id: ' + business_id.value)
 - Run `pnpm --filter api types` and `pnpm --filter api test`. Cover changed public behavior: exact snake_case response shapes, JSON filters, persistence, ordering, validation, business isolation, and relevant null/omission semantics. Reuse SQLite-backed room tests for real SQL behavior.
 - For `QUERY`, verify CORS preflight permits the method and `Content-Type` header. Installed Hono supports both; check before adding configuration or upgrading dependencies.
 - Report actual checks and distinguish local SQLite evidence from live D1 verification. Do not apply remote migrations or deploy as incidental verification.
+
+
+## Racing quantity booking (12 Nov 2026)
+
+Optional quantity must be an integer from 1–4 (omission defaults to 1); non-RACING categories accept only 1 or omission. The server resolves category ownership/acronym. RACING assigns distinct machines continuously free for the full interval, ordered by sort order/name/ID, even for quantity 1. Confirmed and unexpired pending bookings block overlaps; adjacent intervals, cancelled bookings and expired holds do not. Insufficient capacity returns 409 before writes. One booking has N reservation rows and one unchanged upfront payment flow. Other categories retain the temporary assignment bypass. The response still temporarily returns payment_url: null. Concurrency protection and atomicity remain deferred.

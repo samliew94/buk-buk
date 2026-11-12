@@ -39,6 +39,23 @@ function readDateTime(value: unknown, field: string) {
 
 export const bookings = new Hono<AppEnv>()
 
+bookings.query('/', async (c) => {
+  const body = await readBody(c.req.raw)
+  if (Object.keys(body).some(key => !['business_id', 'date'].includes(key))) {
+    throw new BadRequestError('unsupported filter | resource: bookings')
+  }
+  const businessId = readId(body.business_id, 'business_id')
+  const date = body.date
+  if (typeof date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+    throw new BadRequestError('expected YYYY-MM-DD | field: date')
+  }
+  const day = DateTime.fromISO(date, { zone: 'Asia/Kuala_Lumpur' })
+  if (!day.isValid || day.toISODate() !== date) {
+    throw new BadRequestError('invalid calendar date | field: date')
+  }
+  return c.json(await c.get('dependencies').queryBookings.query(businessId, new MyDateTime(day)))
+})
+
 bookings.get('/:bookingId', async (c) => {
   const booking = await c.get('dependencies').queryBooking.query(Guid.from(c.req.param('bookingId')))
   return c.json(booking)
@@ -56,7 +73,10 @@ bookings.post('/', async (c) => {
   if (!from.plus(duration).value.isValid) {
     throw new BadRequestError('duration exceeds datetime range | field: duration')
   }
+  if ('quantity' in body && (typeof body.quantity !== 'number' || !Number.isInteger(body.quantity) || body.quantity < 1 || body.quantity > 4)) {
+    throw new BadRequestError('quantity must be an integer from 1 to 4 | field: quantity')
+  }
   const roomCategoryId = readId(body.room_category_id, 'room_category_id')
-  const result = await c.get('dependencies').createBooking.exec(businessId, customerId, from, duration, roomCategoryId)
+  const result = await c.get('dependencies').createBooking.exec(businessId, customerId, from, duration, roomCategoryId, body.quantity as number | undefined)
   return c.json({ booking_id: result.booking_id.value, payment_url: result.payment_url }, 201)
 })

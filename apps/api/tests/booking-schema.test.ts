@@ -85,19 +85,15 @@ test('migrations support booking creation with reservations and optional demo pa
     from: '2026-11-03T11:00:00+08:00', duration: 60,
   })
   assert.equal(withPayment.status, 201)
-  const second = await withPayment.json() as { booking_id: string; payment_url: string }
-  assert.equal(db.prepare('SELECT status FROM booking WHERE id = ?').get(second.booking_id)!.status, 'pending')
-  const payment = db.prepare('SELECT * FROM payment WHERE booking_id = ?').get(second.booking_id)!
-  assert.equal(payment.price, 11.5)
-  assert.equal(payment.status, 'pending')
-  const order = db.prepare('SELECT * FROM demo_payment_order WHERE reference_id = ?').get(payment.id)!
-  assert.equal(order.price, 11.5)
-  assert.match(order.created_at as string, /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/)
-  assert.equal(second.payment_url, `/demo/payment/${order.id}`)
+  const second = await withPayment.json() as { booking_id: string; payment_url: null }
+  assert.equal(db.prepare('SELECT status FROM booking WHERE id = ?').get(second.booking_id)!.status, 'confirmed')
+  assert.equal(db.prepare('SELECT count(*) AS count FROM payment').get()!.count, 0)
+  assert.equal(db.prepare('SELECT count(*) AS count FROM demo_payment_order').get()!.count, 0)
+  assert.equal(second.payment_url, null)
   assert.deepEqual(db.prepare('PRAGMA foreign_key_check').all(), [])
 })
 
-test('booking conflicts return 409 before any booking, reservation or payment writes', async (t) => {
+test('temporary booking bypass accepts conflicts with confirmed and pending reservations', async (t) => {
   const { db, create } = fixture()
   t.after(() => db.close())
   assert.equal((await create()).status, 201)
@@ -107,16 +103,19 @@ test('booking conflicts return 409 before any booking, reservation or payment wr
     INSERT INTO upfront_payment_policy VALUES ('business-1', 10);
     INSERT INTO business_payment_gateway VALUES ('business-1');
   `)
+  let created = 0
   for (const status of ['confirmed', 'pending']) {
     db.prepare('UPDATE booking SET status = ?').run(status)
     const response = await create({
       business_id: 'business-1', customer_id: 'customer-1', room_category_id: 'room-1',
       from: '2026-11-03T10:30:00+08:00', duration: 60,
     })
-    assert.equal(response.status, 409)
-    assert.match((await response.json() as { error: string }).error, /room category unavailable \| id: room-1/)
+    assert.equal(response.status, 201)
+    created++
+    const body = await response.json() as { booking_id: string }
+    assert.equal(db.prepare('SELECT room_id FROM room_reservation WHERE booking_id = ?').get(body.booking_id)!.room_id, 'room-1')
     for (const [table, expected] of [
-      ['booking', 1], ['room_reservation', 1], ['payment', 0], ['demo_payment_order', 0],
+      ['booking', 1 + created], ['room_reservation', 1 + created], ['payment', 0], ['demo_payment_order', 0],
     ] as const) {
       assert.equal(db.prepare(`SELECT count(*) AS count FROM ${table}`).get()!.count, expected)
     }
@@ -243,16 +242,16 @@ test('demo success retains pending payment, inserts paid payment and confirms on
 })
 
 for (const status of ['paid', 'cancelled', 'rejected']) {
-  test(`guest demo payment API completes ${status} workflow from booking payment_url`, async (t) => {
+  test(`guest demo payment API completes ${status} workflow with pre-existing payment records`, async (t) => {
     const { db, create, pay } = fixture()
     t.after(() => db.close())
-    db.exec("INSERT INTO upfront_payment_policy VALUES ('business-1', 0)")
-    const response = await create()
-    assert.equal(response.status, 201)
-    const { booking_id: bookingId, payment_url: paymentUrl } = await response.json() as { booking_id: string; payment_url: string }
-    const orderId = paymentUrl.split('/').at(-1)!
-    const original = db.prepare('SELECT * FROM payment WHERE booking_id = ?').get(bookingId)!
-    assert.equal(original.price, 1.5)
+    // Existing pending payments remain payable while new bookings bypass payment.
+    db.exec(`INSERT INTO booking VALUES ('payment-booking','customer-1','pending','now','2099-01-01T00:00:00.000Z');
+      INSERT INTO payment VALUES ('original-payment','payment-booking',1.5,'pending','now');
+      INSERT INTO demo_payment_order VALUES ('demo-order','original-payment',1.5,'pending','now');`)
+    const bookingId = 'payment-booking'
+    const original = db.prepare('SELECT * FROM payment WHERE id = ?').get('original-payment')!
+    const orderId = 'demo-order'
     for (const invalid of ['{', 'null', '[]', '{}', '{"status":"pending"}']) {
       assert.equal((await pay(orderId, invalid)).status, 400)
     }
@@ -261,7 +260,7 @@ for (const status of ['paid', 'cancelled', 'rejected']) {
     assert.equal(db.prepare('SELECT status FROM demo_payment_order WHERE id = ?').get(orderId)!.status, 'pending')
     const paid = await pay(orderId, JSON.stringify({ status, reference_id: 'untrusted' }))
     assert.equal(paid.status, 200)
-    assert.deepEqual(await paid.json(), { id: orderId, reference_id: original.id, price: 1.5, status })
+    assert.deepEqual(await paid.json(), { id: orderId, reference_id: original.id, booking_id: bookingId, price: 1.5, status })
     assert.equal(db.prepare('SELECT status FROM demo_payment_order WHERE id = ?').get(orderId)!.status, status)
     assert.equal(db.prepare('SELECT status FROM booking WHERE id = ?').get(bookingId)!.status, status === 'paid' ? 'confirmed' : 'cancelled')
     assert.equal(db.prepare('SELECT status FROM payment WHERE id = ?').get(original.id)!.status, 'pending')

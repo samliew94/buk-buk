@@ -1,7 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
-  categorySlots,
+  categorySlots as computeCategorySlots,
   retainDuration,
   type Reservation,
 } from '../../web/src/lib/customer/availability'
@@ -26,6 +26,10 @@ const reservation = (
   status,
   expire_at: expireAt,
 })
+// Keep availability fixtures independent of the wall clock.
+const categorySlots = (...args: Parameters<typeof computeCategorySlots>) =>
+  computeCategorySlots(args[0], args[1], args[2], args[3], args[4] ?? opening)
+
 test('Family remains bookable when FR3 alone is free; all rooms blocked removes the pair', () => {
   const rows = [reservation('FR1'), reservation('FR2')]
   assert.deepEqual(
@@ -112,4 +116,18 @@ test('partial hours are rounded down while quarter-hour starts remain available'
   assert.equal(slots[1].start, opening + 15 * 60_000)
   assert.equal(retainDuration(15, slots[0]), 60)
   assert.equal(retainDuration(120, undefined), 60)
+})
+
+
+test('past starts are hidden and future dates retain all starts', () => {
+  const opening = Date.parse('2026-11-12T10:00:00+08:00')
+  const closing = Date.parse('2026-11-12T22:00:00+08:00')
+  const now = Date.parse('2026-11-12T14:27:00+08:00')
+  assert.equal(categorySlots([family], [], opening, closing, now)[0].time, '14:30')
+  const boundary = Date.parse('2026-11-12T14:30:00+08:00')
+  assert.equal(categorySlots([family], [], opening, closing, boundary)[0].time, '14:30')
+  assert.equal(categorySlots([family], [], opening, closing, boundary + 1)[0].time, '14:45')
+  assert.equal(categorySlots([family], [], opening, closing, closing).length, 0)
+  const tomorrow = 24 * 60 * 60_000
+  assert.equal(categorySlots([family], [], opening + tomorrow, closing + tomorrow, now)[0].time, '10:00')
 })

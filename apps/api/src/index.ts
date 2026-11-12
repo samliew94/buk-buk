@@ -9,6 +9,7 @@ import { roomCategoryRentalFees } from './room-rental/room-category-rental-fee.c
 import { bookings } from './booking/booking.controller'
 import { reservations } from './reservation/reservation.controller'
 import { demoPayments } from './payment/demo-payment.controller'
+import { payments } from './payment/payment.controller'
 import { paymentWebhook } from './payment/payment-webhook.controller'
 import { createDependencies, type AppEnv, type DependencyFactory } from './dependencies'
 import { errorResponseMessage } from './errors'
@@ -37,6 +38,7 @@ export function createApp(dependencyFactory: DependencyFactory = createDependenc
   app.route('/v1/reservations', reservations)
   app.route('/webhook/payment', paymentWebhook)
   app.route('/v1/demo-payment-orders', demoPayments)
+  app.route('/v1/payments', payments)
   app.notFound((c) => c.json({ error: 'Not found' }, 404))
   return app
 }

@@ -1,6 +1,8 @@
+import { QueryPayments } from './payment/QueryPayments'
 import { QueryRoomCategories } from './room-category/QueryRoomCategories'
 import { UpdateRoomCategory } from './room-category/UpdateRoomCategory'
 import { CreateRoomCategory } from './room-category/CreateRoomCategory'
+import { QueryBookings } from './booking/QueryBookings'
 import { QueryBooking } from './booking/QueryBooking'
 import { QueryDemoPaymentOrder } from './payment/QueryDemoPaymentOrder'
 import { AuthService, type AuthenticationService } from './auth/auth.service'
@@ -38,10 +40,13 @@ import { SubmitDemoPayment } from './payment/SubmitDemoPayment'
 import { CancelBooking } from './booking/CancelBooking'
 
 export interface Dependencies {
+  queryPayments: Pick<QueryPayments, 'query'>
+  queryPayment: Pick<QueryPayment, 'query'>
   requireRoomCategory: Pick<RequireRoomCategory, 'exec'>
   queryRoomCategories: Pick<QueryRoomCategories, 'query'>
   updateRoomCategory: Pick<UpdateRoomCategory, 'exec'>
   createRoomCategory: Pick<CreateRoomCategory, 'exec'>
+  queryBookings: Pick<QueryBookings, 'query'>
   queryBooking: Pick<QueryBooking, 'query'>
   queryDemoPaymentOrder: Pick<QueryDemoPaymentOrder, 'query'>
   submitDemoPayment: Pick<SubmitDemoPayment, 'exec'>
@@ -75,10 +80,13 @@ export const createDependencies: DependencyFactory = (env) => {
     new CancelPayment(env.DB, new QueryPayment(env.DB)), new CancelBooking(env.DB),
   )
   return {
+    queryPayments: new QueryPayments(env.DB),
+    queryPayment: new QueryPayment(env.DB),
     requireRoomCategory: new RequireRoomCategory(env.DB),
     queryRoomCategories: new QueryRoomCategories(env.DB),
     updateRoomCategory: new UpdateRoomCategory(env.DB),
     createRoomCategory: new CreateRoomCategory(env.DB),
+    queryBookings: new QueryBookings(env.DB),
     queryBooking: new QueryBooking(env.DB),
     queryDemoPaymentOrder: new QueryDemoPaymentOrder(env.DB),
     handleDemoPaymentWebhook,
