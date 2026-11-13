@@ -48,7 +48,7 @@ Admin login retains the original shared-password model with generic naming. Ther
 
 ## Dependency injection
 
-Booking creation accepts `{ "business_id": "business-1", "customer_id": "customer-1", "room_category_id": "category-1", "from": "2026-11-11T07:00:00.000Z", "duration": 90 }`. Duration remains any finite positive number of minutes. A missing or foreign category returns 404. Optional quantity must be an integer from 1–4 (omission defaults to 1); non-RACING categories accept only 1 or omission. The server resolves category ownership/acronym. RACING assigns distinct machines continuously free for the full interval, ordered by sort order/name/ID, even for quantity 1. Confirmed and unexpired pending bookings block overlaps; adjacent intervals, cancelled bookings and expired holds do not. Insufficient capacity returns 409 before writes. One booking has N reservation rows and one unchanged upfront payment flow. Other categories retain the temporary assignment bypass. The response still temporarily returns payment_url: null. Concurrency protection and atomicity remain deferred.
+Booking creation stores the validated business_id on the booking. Booking creation accepts `{ "business_id": "business-1", "customer_id": "customer-1", "room_category_id": "category-1", "from": "2026-11-11T07:00:00.000Z", "duration": 90 }`. Duration remains any finite positive number of minutes. A missing or foreign category returns 404. Optional quantity must be an integer from 1–4 (omission defaults to 1); non-RACING categories accept only 1 or omission. The server resolves category ownership/acronym. RACING assigns distinct machines continuously free for the full interval, ordered by sort order/name/ID, even for quantity 1. Confirmed and unexpired pending bookings block overlaps; adjacent intervals, cancelled bookings and expired holds do not. Insufficient capacity returns 409 before writes. One booking has N reservation rows and one unchanged upfront payment flow. Other categories retain the temporary assignment bypass. The response still temporarily returns payment_url: null. Concurrency protection and atomicity remain deferred.
 
 Both reservation query variants require business_id: `{ "business_id": "...", "from": "...", "to": "..." }` or `{ "business_id": "...", "date": "2026-11-10T16:00:00.000Z" }`. Responses include `id`, `room_id`, `room_category_id`, `customer_id`, `status`, `created_at`, `expire_at`, `from`, `to`. Business ownership follows assigned room → category. The stored requested category is returned. Range filtering retains `from >= lower AND to < upper`; date filtering returns all overlaps in the exact 24-hour window. Datetimes without offset use Asia/Kuala_Lumpur. Date requires UTC ISO with seconds and Z.
 
@@ -84,7 +84,7 @@ Booking lookup includes a `reservations` array (empty when there are none). Each
 
 The gateway-independent `/customer/payments/{payment_id}` page fetches `GET /v1/payments/{payment_id}` in the browser, then redirects to `/customer/bookings/{booking_id}` using the returned booking ID. Failed or missing lookups display an error without redirecting.
 
-Temporary upfront payment bypass: `bypassUpfrontPayment = true` in `CreateBooking.ts` skips the configured policy. New bookings are confirmed immediately with no payment or gateway order and `payment_url: null`. The controller returns the use case URL unchanged. Set the flag to false to restore normal payment handling. A zero business fee alone still incurs the RM1.50 gateway fee.
+`CreateBooking.exec` accepts a final `skipPayment` boolean (default `false`, after quantity, which defaults to 0 for non-Racing use-case calls; Racing requires an explicit integer from 1–4). When true, payment is unnecessary regardless of business policy: the booking confirms immediately, creates no payment or gateway order, and returns `payment_url: null`. Otherwise the configured upfront payment policy applies; a missing policy or a policy price of 0.00 requires no payment, including no gateway fee. The controller temporarily always passes `skipPayment = true` for all callers; future actor-role handling will derive this flag for admins rather than accepting it from the request body.
 
 ## Admin booking day grid
 
@@ -95,6 +95,9 @@ The interval is Malaysia midnight to the next midnight, bound as UTC ISO strings
 reservation start < day end and reservation end > day start. Exact touching
 boundaries are excluded. No parent existence lookup is required; an unknown
 business returns empty arrays.
+
+Daily reservations use stored booking.business_id; room reassignment does not
+transfer booking history. The room roster still uses current room categories.
 
 The response contains all physical `rooms` for the business, including unbooked
 rooms, ordered by category sort_order, then room sort_order, with category name/ID and room name/ID as tie-breakers. Room fields are `id`, `room_category_id`,
@@ -121,7 +124,7 @@ access convention.
 
 The day query `QUERY /v1/bookings` includes `customer_name` and `customer_phone` on each booking, joined from its customer record, for the admin grid cards.
 
-Temporary room conflict bypass: booking assignment ignores existing reservations for all categories, including RACING. Machines remain distinct within each booking and quantity cannot exceed the physical room count. Set `bypassRoomConflicts` to `false` in `AssignRoom.ts` to restore Racing checks. Customer time-slot availability filtering remains active.
+Temporary room conflict bypass: booking assignment ignores existing reservations for all categories, including RACING. Machines remain distinct within each booking and quantity cannot exceed the physical room count. Set `bypassRoomConflicts` to `false` in `QueryAvailableRooms.ts` to restore reservation overlap checks. Customer time-slot availability filtering remains active.
 
 ## Admin payment history
 
@@ -133,9 +136,38 @@ customer_name, customer_phone }`, or `[]`. Every stored payment row/status is
 retained, including pending history for completed or cancelled bookings.
 Filter payment creation within the selected Malaysia day (inclusive midnight,
 exclusive next midnight converted to UTC); order by created_at DESC, id DESC.
-Business ownership follows reservations through assigned physical rooms and their
-current categories; multiple reservations do not duplicate payments.
+Business ownership uses stored booking.business_id, including bookings without
+reservations. Room reassignment does not transfer payments; multiple reservations
+do not duplicate payments.
 
 `/admin/payments` initializes today in Malaysia time on mount and retains date
 selection in component state. The horizontally scrolling table pins View actions
 to its right edge; View opens the associated customer booking in the same tab.
+
+## Replace booking reservations
+
+Public `PUT /v1/bookings/:booking_id` replaces the complete reservation list:
+
+```json
+{"reservations":[{"room_id":"room-1","from":"2026-11-14T10:00:00+08:00","duration":90},{"room_id":"room-2","from":"2026-11-14T11:00:00+08:00","duration":60}]}
+```
+
+Returns 200 using the existing GET booking response, with new server-generated
+reservation IDs. Every entry explicitly selects one physical room; no quantity
+or automatic assignment applies. Rooms must belong to the stored booking business
+through their current category, which is saved on each replacement reservation.
+Missing bookings or missing/foreign rooms return 404.
+
+Malformed JSON, unsupported fields (including nested fields), missing/empty lists,
+invalid room IDs/datetimes, nonfinite/nonpositive durations, invalid calculated
+ends and overlapping intervals for the same room in this list return 400.
+Adjacent or separate intervals for the same room are allowed. Offset-free input
+means Asia/Kuala_Lumpur; timestamps are stored as UTC ISO. Conflicts with other
+bookings remain allowed under the MVP bypass.
+
+All stored booking statuses are editable, including cancelled bookings and expired
+pending holds. Booking ID, business, customer, status, creation time, expiry and
+payment records are preserved. No payment or status transition flow runs. Complete
+validation precedes writes; deletion and replacement execute in one transactional
+D1 batch so a failed insert restores the original reservations. GET and daily
+queries read the updated rows with their existing status/expiry filtering.

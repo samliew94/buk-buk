@@ -1242,6 +1242,41 @@
           }
         }
       ]
+    },
+    {
+      "name": "UpdateBooking",
+      "request": {
+        "method": "PUT",
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{url}}/v1/bookings/{{booking_id}}",
+        "description": "Replace the complete reservations list for any booking status. Uses stored booking business ownership and current room categories. Preserves booking fields, expiry and payment history. New reservation IDs are generated. Public MVP access; other bookings may conflict. Same-room overlaps within this list return 400; missing/foreign rooms or booking return 404. Replacement is atomic. Offset-free starts use Malaysia time; output is UTC. Returns 200 in the QueryBooking shape. Set room_id to an existing physical room in this booking business.",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"reservations\": [\n    {\n      \"room_id\": \"{{room_id}}\",\n      \"from\": \"2026-11-14T10:00:00+08:00\",\n      \"duration\": 90\n    }\n  ]\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Updated booking\", () => { pm.response.to.have.status(200); });",
+              "pm.test(\"Booking and reservations\", () => { const b = pm.response.json(); pm.expect(b.id).to.eql(pm.collectionVariables.get(\"booking_id\")); pm.expect(b.reservations).to.be.an(\"array\").that.is.not.empty; b.reservations.forEach(r => { pm.expect(r).to.have.all.keys(\"id\", \"room_id\", \"room_name\", \"room_category_id\", \"room_category_name\", \"room_category_acronym\", \"from\", \"to\", \"duration\"); }); });"
+            ]
+          }
+        }
+      ]
     }
   ]
 }

@@ -22,7 +22,7 @@ test('booking roster groups categories before ordering physical rooms', async t 
   assert.deepEqual(body.rooms.map((room: any) => room.name), ['OS4', 'VIP', 'R1', 'R2', 'R3', 'R4'])
 })
 
-test('booking day query uses physical business scope, strict overlap, full intervals and stable roster', async t => {
+test('booking day query uses stored business scope, strict overlap, full intervals and stable roster', async t => {
   t.mock.method(MyDateTime, 'now', () => new MyDateTime(DateTime.fromISO('2026-11-12T00:00:00.000Z')))
   const { db, d1 } = fixture()
   t.after(() => db.close())
@@ -33,7 +33,7 @@ test('booking day query uses physical business scope, strict overlap, full inter
     INSERT INTO customer(id,name,phone) VALUES ('c','Guest','0123');
   `)
   const insert = (id: string, status: string, room: string, from: string, to: string, category = 'ca', bookingId = id) => {
-    db.prepare("INSERT OR IGNORE INTO booking VALUES (?, 'c', ?, '2026-11-01T00:00:00.000Z', '2026-11-01T00:10:00.000Z')").run(bookingId, status)
+    db.prepare("INSERT OR IGNORE INTO booking (business_id, id, customer_id, status, created_at, expire_at) VALUES ('a', ?, 'c', ?, '2026-11-01T00:00:00.000Z', '2026-11-01T00:10:00.000Z')").run(bookingId, status)
     db.prepare('INSERT INTO room_reservation VALUES (?,?,?,?,?,?)').run(id, bookingId, room, from, to, category)
   }
   insert('previous', 'confirmed', 'a', '2026-11-11T15:00:00.000Z', '2026-11-11T16:15:00.000Z')
@@ -43,7 +43,8 @@ test('booking day query uses physical business scope, strict overlap, full inter
   insert('end-at-start', 'confirmed', 'a', '2026-11-11T15:00:00.000Z', '2026-11-11T16:00:00.000Z')
   insert('start-at-end', 'confirmed', 'a', '2026-11-12T16:00:00.000Z', '2026-11-12T17:00:00.000Z')
   // Stored requested category must not establish ownership in either direction.
-  insert('foreign', 'confirmed', 'foreign', '2026-11-12T01:00:00.000Z', '2026-11-12T02:00:00.000Z', 'ca', 'pending')
+  insert('foreign', 'confirmed', 'foreign', '2026-11-12T01:00:00.000Z', '2026-11-12T02:00:00.000Z', 'ca', 'foreign')
+  db.exec("UPDATE booking SET business_id = 'b' WHERE id = 'foreign'")
   insert('moved', 'confirmed', 'z', '2026-11-12T03:00:00.000Z', '2026-11-12T04:00:00.000Z', 'cb')
   db.prepare("UPDATE booking SET expire_at = '2026-11-12T00:00:00.001Z' WHERE id = 'pending'").run()
   const app = createApp()
@@ -65,6 +66,11 @@ test('booking day query uses physical business scope, strict overlap, full inter
   const other = await (await query('b')).json() as any
   assert.deepEqual(other.rooms.map((r: any) => r.id), ['foreign'])
   assert.deepEqual(other.bookings[0].reservations.map((r: any) => r.id), ['foreign'])
+  db.exec("UPDATE room SET room_category_id = 'cb' WHERE id = 'z'")
+  const reassigned = await (await query('a')).json() as any
+  assert.deepEqual(reassigned.bookings, body.bookings)
+  assert.deepEqual(reassigned.rooms.map((r: any) => r.id), ['empty', 'a'])
+  db.exec("UPDATE room SET room_category_id = 'ca' WHERE id = 'z'")
   // Compare against current time, regardless of the requested reservation day.
   assert.equal(body.bookings[1].status, 'pending')
   for (const expiry of ['2026-11-12T00:00:00.000Z', '2026-11-11T23:59:59.999Z']) {

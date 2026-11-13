@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { layoutDay, type Booking } from '../../web/src/lib/admin/booking-grid'
+import { layoutDay, type Booking } from '../../admin/src/lib/admin/booking-grid'
 
 const start = Date.parse('2026-11-11T16:00:00.000Z')
 const hour = 3_600_000

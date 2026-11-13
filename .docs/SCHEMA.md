@@ -36,6 +36,7 @@ customer
 
 booking
 - id TEXT
+- business_id TEXT NOT NULL → business.id (indexed; authoritative history ownership)
 - customer_id TEXT
 - status TEXT (`pending`, `confirmed`, `cancelled`)
 - created_at TEXT
@@ -73,3 +74,5 @@ demo_payment_order
 Migration 0013 creates one category per old room using the same ID and copies its business/name/acronym/order. Physical IDs and order remain; names become the old acronym when present, otherwise the old name. Fee IDs, durations and prices are copied unchanged. Reservations retain their IDs, booking IDs, assigned rooms and intervals and record the corresponding original category. Booking/payment tables are unchanged. Rebuilt foreign keys are checked by local tests. Grouping rooms under Family is a later explicit configuration step.
 
 Indexes cover category/business ordering, room/category ordering, fee/category lookup, reservation room/interval lookup and existing booking/start lookups.
+
+Migration 0017 backfills booking ownership from assigned rooms and their current categories. Every booking must resolve to exactly one business; missing or conflicting ownership aborts the migration. Booking and dependent reservation/payment/demo order tables are rebuilt with foreign keys enabled, preserving fields, defaults, records and indexes. Payment history and daily bookings use stored ownership; availability and the room roster retain current physical room scope. API response fields are unchanged.

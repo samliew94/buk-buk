@@ -1,12 +1,12 @@
 import { BadRequestError } from '../errors';
 import { CreatePayment } from "../payment/CreatePayment";
 import { InitiatePaymentGateway } from "../payment/InitiatePaymentGateway";
-import { QueryUpfrontPaymentPolicy } from "../payment/QueryUpfrontPaymentPolicy";
 import { PaymentStatus } from "../payment/payment-status.enum";
+import { QueryUpfrontPaymentPolicy } from "../payment/QueryUpfrontPaymentPolicy";
 import { UpfrontPayment } from "../payment/UpfrontPayment";
 import { ReserveRooms } from "../reservation/ReserveRooms";
-import { AssignRoom } from "../room-category/AssignRoom";
-import { RequireRoomCategory } from "../room-category/RequireRoomCategory";
+import { QueryAvailableRooms } from "../room-category/QueryAvailableRooms";
+import { QueryRoomCategory } from "../room-category/QueryRoomCategory";
 import { MyDateTime } from "../utils/MyDateTime";
 import { Guid } from "../value-objects/Guid";
 import { PositiveDuration } from "../value-objects/PositiveDuration";
@@ -19,39 +19,44 @@ export class CreateBooking {
     private readonly _queryUpfrontPaymentPolicy: QueryUpfrontPaymentPolicy,
     private readonly _createPayment: CreatePayment,
     private readonly _initiatePaymentGateway: InitiatePaymentGateway,
-    private readonly _assignRoom: AssignRoom,
-    private readonly _requireRoomCategory: RequireRoomCategory
+    private readonly _queryAvailableRooms: QueryAvailableRooms,
+    private readonly _queryRoomCategory: QueryRoomCategory
   ) {}
 
   async exec(
     businessId: Guid,
-    customerId: Guid, 
+    customerId: Guid,
     from: MyDateTime,
     duration: PositiveDuration, // in minutes
-    roomCategoryId: Guid, quantity?: number) {
+    roomCategoryId: Guid,
+    quantity: number = 0,
+    skipPayment: boolean = false) {
 
       const to = from.plus(duration);
-      const category = await this._requireRoomCategory.exec(roomCategoryId, businessId);
-      const count = quantity === undefined ? 1 : quantity;
-      if (!Number.isInteger(count) || count < 1 || count > 4 || (category.acronym !== 'RACING' && count !== 1)) {
-        throw new BadRequestError('invalid quantity for room category | id: ' + roomCategoryId.value);
-      }
-      const roomIds = await this._assignRoom.assign(roomCategoryId, from, to, count, category.acronym === 'RACING');
+
+      const roomCategory = await this._queryRoomCategory.query(roomCategoryId, businessId);
+
+      if (roomCategory.acronym === 'RACING' && (!Number.isInteger(quantity) || quantity < 1 || quantity > 4))
+        throw new BadRequestError('invalid quantity for room category | id: ' + roomCategoryId.value)
+
+      const roomIds = await this._queryAvailableRooms.query(
+        roomCategoryId,
+        from,
+        to,
+        roomCategory.acronym === 'RACING' ? quantity : 1);
 
       const now = MyDateTime.now();
 
       const bookingId = Guid.new();
 
-      // is upfront payment needed by this business?
-      // Temporary: set to false to restore the configured upfront payment policy.
-      const bypassUpfrontPayment = false;
-      const upfrontPayment = bypassUpfrontPayment ? null : await UpfrontPayment.fromRowResult(
+      // Admin-created bookings can skip payment regardless of business policy.
+      const upfrontPayment = skipPayment ? null : await UpfrontPayment.fromRowResult(
         await this._queryUpfrontPaymentPolicy.query(businessId));
 
       // create booking record
       await this._d1.prepare(`
-        INSERT INTO booking (id, customer_id, status, created_at, expire_at)
-        VALUES (?, ?, ?, ?, ?)`)
+        INSERT INTO booking (id, customer_id, status, created_at, expire_at, business_id)
+        VALUES (?, ?, ?, ?, ?, ?)`)
           .bind(
             bookingId.value,
             customerId.value,
@@ -59,7 +64,8 @@ export class CreateBooking {
               ? BookingStatus.CONFIRMED
               : BookingStatus.PENDING,
             now.toUtcIso(),
-            now.plus(PositiveDuration.fromMinutes(10)).toUtcIso())
+            now.plus(PositiveDuration.fromMinutes(10)).toUtcIso(),
+            businessId.value)
           .run();
 
       // reserve room(s) - they will be blocked
@@ -68,7 +74,7 @@ export class CreateBooking {
           bookingId,
           roomId,
           roomCategoryId,
-          from, 
+          from,
           to)}
 
       let paymentUrl: string | null = null;

@@ -18,11 +18,11 @@ const reportedInput = {
 }
 
 function fixture() {
-  // Site-specific configuration migrations (0014+) require ST3 seed data.
+  // Site-specific configuration migrations 0014–0016 require ST3 seed data.
   const db = new DatabaseSync(':memory:')
   db.exec('PRAGMA foreign_keys = ON')
   const migrations = new URL('../migrations/', import.meta.url)
-  for (const name of readdirSync(migrations).filter(name => name.endsWith('.sql') && name < '0014').sort()) {
+  for (const name of readdirSync(migrations).filter(name => name.endsWith('.sql') && (name < '0014' || name.startsWith('0017'))).sort()) {
     db.exec(readFileSync(new URL(name, migrations), 'utf8'))
   }
   db.exec(`
@@ -73,6 +73,7 @@ test('migrations support booking creation with reservations and optional demo pa
   assert.equal(db.prepare('SELECT customer_id FROM booking WHERE id = ?').get(first.booking_id)!.customer_id, 'customer-1')
   assert.equal(db.prepare('SELECT status FROM booking WHERE id = ?').get(first.booking_id)!.status, 'confirmed')
   const reservation = db.prepare('SELECT * FROM room_reservation WHERE booking_id = ?').get(first.booking_id)!
+  assert.equal(db.prepare('SELECT business_id FROM booking WHERE id = ?').get(first.booking_id)!.business_id, 'business-1')
   assert.equal(reservation.room_id, 'room-1')
   assert.equal(reservation.from, '2026-11-03T02:00:00.000Z')
   assert.equal(reservation.to, '2026-11-03T03:00:00.000Z')
@@ -180,7 +181,7 @@ test('reservation query reads reservation dates and booking details from the mig
 test('queryByDate selects reservations overlapping 24 hours from the supplied UTC timestamp', async (t) => {
   const { db, queryReservations } = fixture()
   t.after(() => db.close())
-  db.exec("INSERT INTO booking VALUES ('booking-1', 'customer-1', 'pending', '2025-12-31T23:55:00.123+08:00', '2025-12-31T16:12:00.123Z')")
+  db.exec("INSERT INTO booking (business_id, id, customer_id, status, created_at, expire_at) VALUES ('business-1', 'booking-1', 'customer-1', 'pending', '2025-12-31T23:55:00.123+08:00', '2025-12-31T16:12:00.123Z')")
   const intervals = [
     ['2025-12-31T16:00:00.000Z', '2025-12-31T17:00:00.000Z'],
     ['2026-01-01T15:00:00.000Z', '2026-01-01T16:00:00.000Z'],
@@ -206,9 +207,9 @@ test('queryByDate selects reservations overlapping 24 hours from the supplied UT
 test('booking and payment schema rejects invalid references', (t) => {
   const { db } = fixture()
   t.after(() => db.close())
-  db.exec("INSERT INTO booking VALUES ('booking-1', 'customer-1', 'pending', '2026-11-03T00:00:00.000Z', '2026-11-03T00:10:00.000Z')")
+  db.exec("INSERT INTO booking (business_id, id, customer_id, status, created_at, expire_at) VALUES ('business-1', 'booking-1', 'customer-1', 'pending', '2026-11-03T00:00:00.000Z', '2026-11-03T00:10:00.000Z')")
   for (const sql of [
-    "INSERT INTO booking VALUES ('bad', 'missing', 'pending', 'now', '2026-11-03T00:10:00.000Z')",
+    "INSERT INTO booking (business_id, id, customer_id, status, created_at, expire_at) VALUES ('business-1', 'bad', 'missing', 'pending', 'now', '2026-11-03T00:10:00.000Z')",
     "INSERT INTO payment VALUES ('bad', 'missing', 0, 'pending', 'now')",
     "INSERT INTO demo_payment_order VALUES ('bad', 'missing', 1, 'pending', 'now')",
     "INSERT INTO upfront_payment_policy VALUES ('missing', 1)",
@@ -222,8 +223,8 @@ test('demo success retains pending payment, inserts paid payment and confirms on
   const { db, webhook } = fixture()
   t.after(() => db.close())
   db.exec(`
-    INSERT INTO booking VALUES ('booking-1', 'customer-1', 'pending', '2026-11-07T00:00:00Z', '2026-11-07T00:10:00.000Z');
-    INSERT INTO booking VALUES ('booking-2', 'customer-1', 'pending', '2026-11-07T00:00:00Z', '2026-11-07T00:10:00.000Z');
+    INSERT INTO booking (business_id, id, customer_id, status, created_at, expire_at) VALUES ('business-1', 'booking-1', 'customer-1', 'pending', '2026-11-07T00:00:00Z', '2026-11-07T00:10:00.000Z');
+    INSERT INTO booking (business_id, id, customer_id, status, created_at, expire_at) VALUES ('business-1', 'booking-2', 'customer-1', 'pending', '2026-11-07T00:00:00Z', '2026-11-07T00:10:00.000Z');
     INSERT INTO payment VALUES ('payment-1', 'booking-1', 11.5, 'pending', '2026-11-07T00:00:00Z');
   `)
   assert.equal((await webhook('missing')).status, 404)
@@ -246,7 +247,7 @@ for (const status of ['paid', 'cancelled', 'rejected']) {
     const { db, create, pay } = fixture()
     t.after(() => db.close())
     // Existing pending payments remain payable while new bookings bypass payment.
-    db.exec(`INSERT INTO booking VALUES ('payment-booking','customer-1','pending','now','2099-01-01T00:00:00.000Z');
+    db.exec(`INSERT INTO booking (business_id, id, customer_id, status, created_at, expire_at) VALUES ('business-1', 'payment-booking','customer-1','pending','now','2099-01-01T00:00:00.000Z');
       INSERT INTO payment VALUES ('original-payment','payment-booking',1.5,'pending','now');
       INSERT INTO demo_payment_order VALUES ('demo-order','original-payment',1.5,'pending','now');`)
     const bookingId = 'payment-booking'

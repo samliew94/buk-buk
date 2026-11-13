@@ -1,6 +1,6 @@
 <script lang="ts">
 	import type { HTMLButtonAttributes } from 'svelte/elements';
-	import Button from './Button.svelte';
+	import Button from '@booking/ui/Button.svelte';
 
 	let {
 		time,

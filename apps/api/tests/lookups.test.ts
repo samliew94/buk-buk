@@ -6,16 +6,17 @@ import { readFileSync, readdirSync } from 'node:fs'
 import { createApp } from '../src/index'
 
 test('booking, payment and demo order GET lookups return snake_case records and null for missing IDs', async (t) => {
-  // Site-specific configuration migrations (0014+) require ST3 seed data.
+  // Site-specific configuration migrations 0014–0016 require ST3 seed data.
   const db = new DatabaseSync(':memory:')
   t.after(() => db.close())
   const migrations = new URL('../migrations/', import.meta.url)
-  for (const name of readdirSync(migrations).filter(name => name.endsWith('.sql') && name < '0014').sort()) {
+  for (const name of readdirSync(migrations).filter(name => name.endsWith('.sql') && (name < '0014' || name.startsWith('0017'))).sort()) {
     db.exec(readFileSync(new URL(name, migrations), 'utf8'))
   }
   db.exec(`
+    INSERT INTO business(id,name) VALUES ('business-1','Business');
     INSERT INTO customer (id, name, phone) VALUES ('customer-1', 'Guest', '0123');
-    INSERT INTO booking VALUES ('booking-1', 'customer-1', 'pending', '2026-11-07T00:00:00.000Z', '2026-11-07T00:10:00.000Z');
+    INSERT INTO booking (business_id, id, customer_id, status, created_at, expire_at) VALUES ('business-1', 'booking-1', 'customer-1', 'pending', '2026-11-07T00:00:00.000Z', '2026-11-07T00:10:00.000Z');
     INSERT INTO payment VALUES ('payment-1', 'booking-1', 1.5, 'pending', '2026-11-07T00:00:00.000Z');
     INSERT INTO demo_payment_order VALUES ('order-1', 'payment-1', 1.5, 'pending', '2026-11-07T00:00:00.000Z');
   `)
@@ -45,14 +46,13 @@ test('booking, payment and demo order GET lookups return snake_case records and 
     assert.deepEqual(await response.json(), record)
   }
   db.exec(`
-    INSERT INTO business (id, name) VALUES ('business-1', 'Venue');
     INSERT OR IGNORE INTO room_category VALUES ('room-1', 'business-1', 'Family Room', 'FR', 1);
     INSERT INTO room VALUES ('room-1', 'room-1', 'Family Room', 1);
     INSERT OR IGNORE INTO room_category VALUES ('room-2', 'business-1', 'Studio', 'ST', 0);
     INSERT INTO room VALUES ('room-2', 'room-2', 'Studio', 0);
     INSERT INTO room_reservation VALUES ('reservation-1', 'booking-1', 'room-1', '2026-11-07T02:00:00.000Z', '2026-11-07T03:30:30.000Z', 'room-1');
     INSERT INTO room_reservation VALUES ('reservation-2', 'booking-1', 'room-2', '2026-11-07T02:00:00.000Z', '2026-11-07T03:00:00.000Z', 'room-2');
-    INSERT INTO booking VALUES ('booking-2', 'customer-1', 'confirmed', '2026-11-07T00:00:00.000Z', '2026-11-07T00:10:00.000Z');
+    INSERT INTO booking (business_id, id, customer_id, status, created_at, expire_at) VALUES ('business-1', 'booking-2', 'customer-1', 'confirmed', '2026-11-07T00:00:00.000Z', '2026-11-07T00:10:00.000Z');
     INSERT INTO room_reservation VALUES ('other-reservation', 'booking-2', 'room-1', '2026-11-08T02:00:00.000Z', '2026-11-08T03:00:00.000Z', 'room-1');
   `)
   const booking = await (await app.request('/v1/bookings/booking-1', {}, env)).json() as { reservations: unknown[] }

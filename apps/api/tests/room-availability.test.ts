@@ -10,11 +10,11 @@ import { Guid } from '../src/value-objects/Guid'
 import { MyDateTime } from '../src/utils/MyDateTime'
 
 test('room availability checks overlap, blocking status, room and interval boundaries', async (t) => {
-  // Site-specific configuration migrations (0014+) require ST3 seed data.
+  // Site-specific configuration migrations 0014–0016 require ST3 seed data.
   const db = new DatabaseSync(':memory:')
   t.after(() => db.close())
   const migrations = new URL('../migrations/', import.meta.url)
-  for (const name of readdirSync(migrations).filter(name => name.endsWith('.sql') && name < '0014').sort()) {
+  for (const name of readdirSync(migrations).filter(name => name.endsWith('.sql') && (name < '0014' || name.startsWith('0017'))).sort()) {
     db.exec(readFileSync(new URL(name, migrations), 'utf8'))
   }
   db.exec(`
@@ -22,7 +22,7 @@ test('room availability checks overlap, blocking status, room and interval bound
     INSERT OR IGNORE INTO room_category VALUES ('room-1', 'business-1', 'Room', NULL, 0);
     INSERT INTO room VALUES ('room-1', 'room-1', 'Room', 0);
     INSERT INTO customer (id, name, phone) VALUES ('customer-1', 'Guest', '0123');
-    INSERT INTO booking VALUES ('booking-1', 'customer-1', 'confirmed', '2026-11-07T00:00:00.000Z', '2026-11-07T00:10:00.000Z');
+    INSERT INTO booking (business_id, id, customer_id, status, created_at, expire_at) VALUES ('business-1', 'booking-1', 'customer-1', 'confirmed', '2026-11-07T00:00:00.000Z', '2026-11-07T00:10:00.000Z');
     INSERT INTO room_reservation VALUES ('reservation-1', 'booking-1', 'room-1', '2026-11-07T02:00:00.000Z', '2026-11-07T03:00:00.000Z', 'room-1');
   `)
   const d1 = {

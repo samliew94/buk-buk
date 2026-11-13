@@ -889,3 +889,332 @@ the saved collection was updated locally without publishing.
 - Admin booking room roster now sorts by category sort_order, then physical
   room sort_order, with category name/ID and room name/ID as tie-breakers. This keeps Racing R1–R4 sequential after
   VIP instead of interleaving categories with overlapping room sort orders.
+
+
+## Customer/admin app split (13 Nov 2026)
+
+- `apps/web` owns customer `/bookings/new`, `/bookings/new/contact-info`,
+  `/bookings/[booking_id]` and `/payments/[paymentId]`; root redirects to
+  `/bookings/new`. A pathless customer layout preserves the booking theme while
+  GM/player/device/info/auth and the light `/payment/demo/[orderId]` stay in web.
+- `apps/admin` is now an independent `admin` package/Worker with only `/bookings`
+  and `/payments`; root redirects to `/bookings`. Removed the old `/customer/*`
+  and `/admin/*` URLs without compatibility redirects. API paths and booking
+  draft storage are unchanged. Customer submission/recovery and demo payment
+  return/payment lookup links use the promoted routes.
+- Added `@booking/ui` Svelte source exports for theme CSS, FontHead, Button and
+  TopNav. Both apps scan the shared components with Tailwind. TopNav receives
+  explicit links; admin shows Bookings, Payments and New Reservation. Admin's
+  New Reservation and payment-row links use `PUBLIC_CUSTOMER_URL`, defaulting
+  to http://localhost:5173 in development and required as an HTTP(S) origin in
+  production, with clear missing/invalid configuration errors. Links stay in
+  the same tab. Existing shared styling and yellow native date controls remain.
+- Workspace discovery includes packages/*; Turbo discovers unique web, admin,
+  api and @booking/ui packages. Both frontends run together on strict ports
+  5173/5174 and preview at 4173/4174. Added root build and frontend types aliases,
+  dependency-aware build/types tasks, PUBLIC_* task environment handling and
+  SvelteKit output caching. Regenerated admin Worker types and lockfile.
+- Both frontend design skills and README guidance now describe app ownership,
+  shared design, routes, development commands and customer-origin configuration.
+- Verification: both production builds and workspace types pass; admin has zero
+  warnings and web retains five existing shared-form warnings. Explicitly included
+  shared Svelte source and disabled checkJs: neither app has authored JavaScript,
+  and Wrangler's generated Worker declarations import deployment JavaScript that
+  previously produced hundreds of unrelated diagnostics.
+- Existing suite: 65/68 tests pass, including the moved admin grid utility tests.
+  Three existing booking/Racing tests expect upfront-payment bypass, while the
+  unchanged HEAD CreateBooking already sets bypassUpfrontPayment=false. No API
+  implementation was changed to address that separate mismatch.
+- Chrome checks at 390px/1440px cover both roots, shared fonts/buttons/navigation,
+  mobile menu/overlay, admin date styling and no page overflow. Old routes return
+  404, as do admin copies of demo/GM routes. Isolated mock API checks cover
+  selection -> contact -> booking and demo approval -> payment lookup -> booking;
+  demo keeps its light theme. Admin payment-row navigation reaches the customer
+  app in the same tab, and changing the native date updates state without changing
+  the URL. No live booking writes, deployments or migrations.
+
+## Admin local reservation flow (13 Nov 2026)
+
+- Admin now owns `/bookings/new` and `/bookings/new/contact-info`; New Reservation
+  stays on the admin origin. Both screens retain Bookings and Payments navigation.
+  Payment-row links still use the configured customer origin.
+- Copied customer selection/loaders, availability helpers, TimeButton, ErrorModal
+  and draft helpers into admin, preserving date/category/time/duration, Racing
+  quantity and responsive controls. A local route layout applies the shared theme.
+- Confirm saves `admin.booking-draft` and opens local contact-info. Draft validation,
+  refresh recovery and Racing quantity summaries match customer behavior.
+- Contact starts empty with MY (+60), also offers SG (+65), and enables Submit
+  for nonblank name/phone. Submit prevents native submission and otherwise does
+  nothing, including Enter: no contact persistence, writes, loading or redirects.
+  Actual admin booking creation remains future work. No API/payment changes.
+- Admin type checking passes with zero errors/warnings; production build,
+  changed source formatting and diff whitespace checks pass.
+- Chrome verification at 390px/1440px confirms same-origin navigation, no page
+  overflow, missing-draft recovery, refresh summary including Racing × 4, empty
+  contact defaults, Submit/Enter retaining values and URL with zero write requests
+  and no contact persistence. Confirm saves the selected category/time/duration
+  to the admin key and reaches local contact-info; customer draft stays untouched.
+  Availability helpers and selection behavior match the copied customer source.
+
+- `CreateBooking.exec` now accepts a final `skipPayment` boolean after quantity,
+  defaulting to false. True means no payment is needed regardless of the business
+  upfront payment policy: confirm immediately, reserve rooms, create no payment
+  or gateway order, and return `payment_url: null`. Removed the local hardcoded
+  switch. The controller retains the default for now; future controller wiring
+  will derive the flag from actor.role (admin/customer), not request JSON.
+- Verification: API type checking and new SQLite-backed payment tests pass for
+  true, false and omitted flags with a configured policy and multiple reservations.
+  Full suite passes 18/20 test files; booking-schema and racing-quantity retain
+  the previously recorded expectations of the old global payment bypass.
+
+- Zero upfront policy price now means no payment needed: `UpfrontPayment.fromRowResult`
+  returns null for price 0.00, so CreateBooking confirms immediately with no
+  payment/gateway orders or gateway fee. This supersedes the earlier rule that
+  a zero business fee still requires the RM1.50 gateway fee. Positive policies
+  continue adding that fee unless skipPayment is true.
+- Payment regression tests cover zero/positive policy prices with skipPayment
+  true, false and omitted. API types and these tests pass; booking-schema retains
+  its existing old-bypass expectation failure in the full suite.
+
+- `CreateBooking.exec` quantity now defaults to 1 directly instead of using an
+  optional parameter and a separate fallback variable. Omission still reserves
+  one room; explicit zero remains invalid under the existing 1–4 rules.
+
+- CreateBooking quantity now defaults to 0 (not applicable to non-Racing).
+  Only Racing validates the integer 1–4 range; non-Racing ignores quantity
+  and always assigns one room. The HTTP controller preserves its existing
+  omitted-quantity default of 1 and transport validation. Direct Racing calls
+  must supply quantity. Supersedes the previous use-case default of 1.
+
+- Renamed `RequireRoomCategory.exec` to
+  `QueryRoomCategory.query(roomCategoryId: Guid, businessId?: Guid)`, updating
+  booking creation, room validation and dependency wiring. Existing business
+  scoping and missing-category NotFoundError behavior remain unchanged.
+
+- Renamed `AssignRoom` to `QueryAvailableRooms` with
+  `query(roomCategoryId, from, to, quantity)`, returning room IDs. Updated booking
+  creation and dependency wiring; removed the unused single-room wrapper and
+  Racing flag. The temporary conflict bypass remains enabled. Turning it off
+  now applies reservation overlap filtering to every category. Physical room
+  count checks and deterministic selection order remain unchanged.
+
+- Design rationale for keeping `QueryAvailableRooms` together: choosing physical
+  room IDs requires knowing which rooms are available for the requested interval.
+  Selecting IDs first and checking conflicts separately could reject a booking
+  when the selected rooms are occupied even though other rooms in the category
+  are free. Keep availability filtering within room selection, then return the
+  requested number of available IDs. A separate `EnsureRoomsAvailable` use case
+  makes sense when the caller already specifies particular physical room IDs.
+  This explains the combined responsibility if splitting it is reconsidered later;
+  the current temporary conflict bypass is a separate MVP decision.
+
+- Admin contact-info Submit now creates the customer with POST /v1/customers,
+  then creates the booking with POST /v1/bookings and redirects to local
+  /bookings/:booking_id. Added admin booking details with admin navigation and
+  grouped Racing summaries. Contact fields still start empty and stay in page
+  state; submission disables controls, blocks duplicate clicks and shows errors.
+- Booking controller temporarily always passes skipPayment=true for every caller,
+  including customer web, confirming bookings without payment/gateway records
+  regardless of policy. The use-case default remains false. This supersedes the
+  earlier placeholder submission and controller-default notes.
+- Verification: admin check reports zero errors/warnings; API types and all 74
+  API tests pass, including confirmed bookings with a positive payment policy
+  and no payment/gateway records. No live booking writes.
+
+- Renamed the admin booking calendar route from /bookings to /calendar.
+  Admin navigation now labels it Calendar, the page title is Admin calendar,
+  and the admin root redirects to /calendar. Reservation creation and detail
+  routes remain under /bookings. Updated workspace route documentation.
+
+## Admin daily bookings list (13 Nov 2026)
+
+- Added `/bookings` as a read-only daily table, keeping `/calendar` and the root
+  redirect unchanged. Navigation is Calendar, Bookings, Payments, New Reservation.
+  Reuses one `QUERY /v1/bookings` per selected date or retry; no per-row requests.
+- Defaults to today's Malaysia date on mount; the yellow native date filter stays
+  in page state. Rows show customer, phone, grouped reservation summaries, stored
+  status and yellow eye links to local `/bookings/[booking_id]` details. Sorts by
+  earliest returned reservation start then booking ID. Shared Racing grouping
+  preserves distinct intervals and includes all machine names; full Malaysia
+  start/end dates and times retain cross-midnight intervals and minute durations.
+- Pending bookings disappear locally at expiry without polling; confirmed and
+  cancelled rows remain. Includes loading, empty, retry, eight-second timeout and
+  stale-response protection, keyboard-scrollable table and sticky headers/actions.
+- Verification: admin type checking has zero errors/warnings; production build,
+  changed source formatting and whitespace checks pass. Mocked Chrome checks at
+  1440px/390px cover layout without page overflow, grouping/different intervals,
+  cross-midnight times, cancelled/pending expiry, scrolling/local details links,
+  date state, empty/error/retry/timeout, rapid date changes and exact query counts.
+  No API changes, live booking writes, deployments or migrations.
+
+- Admin daily booking reservation summaries now show only the Malaysia start
+  date/time and duration in minutes, omitting the end date/time. Stored intervals
+  and Racing grouping remain unchanged.
+- Admin daily booking durations now use hours and remaining minutes (60 becomes
+  1 hour; 90 becomes 1 hour 30 minutes), keeping sub-hour durations in minutes.
+- Admin daily bookings now render reservation starts in the browser local timezone
+  without a MYT suffix. The daily query/date filter retains Malaysia day semantics.
+  Customer name and phone share the Customer column on the first and second lines.
+- Admin booking reservation cells use four lines in order: local start date,
+  room category/quantity and machine names, local start time, then duration.
+- Admin payments now combines customer name (first line) and phone (second
+  line) in one Customer column, matching the bookings list.
+- Removed the date line from admin booking reservation cells; the date picker
+  provides the selected day. Summaries now show room, local start time and duration.
+
+## Stored booking business ownership (13 Nov 2026)
+
+- Migration 0017 adds required, indexed booking.business_id referencing business.
+  Backfill uses assigned physical rooms and their current categories and requires
+  exactly one distinct business per booking; missing/conflicting owners abort.
+  Rebuilds booking/reservation/payment/demo order tables with foreign keys enabled,
+  preserving fields, defaults, IDs, relationships and indexes in D1's transaction.
+- CreateBooking persists its validated businessId. Payment history and daily
+  booking reservations now use stored booking ownership, retaining history after
+  room reassignment. Payment history includes bookings without reservations and
+  never duplicates multi-reservation payments. Room rosters and availability still
+  follow current physical categories. HTTP fields/payment/assignment behavior and
+  public MVP access remain unchanged; concurrency work remains deferred.
+- Applied locally only after SQLite backup at
+  /tmp/booking-before-0017-20261113-112008.sqlite and guarded deletion of pending
+  orphan 01a19f9b-0813-726f-8f02-cb7f36f3a432 (no reservations or payments).
+  Verified all remaining bookings resolved to exactly one business before applying.
+  Afterwards: 25 bookings, 34 reservations, 20 payments, 15 demo orders; all original
+  fields and dependent records match backup apart from the approved deletion.
+  Migration history, required foreign key, indexes and empty foreign_key_check verified.
+- Verification: API type checking and all 78 tests pass, including populated
+  migration success/rollback, single/multiple reservations, missing/conflicting
+  ownership, creation persistence, reassignment scope, payment without reservations,
+  overlap boundaries, expiry, ordering and unchanged response shapes.
+  Local API started with updated creation code. No remote migration or deployment.
+
+- Admin payments now displays the full booking ID in a column immediately before
+  Date / time, using the existing payment response's booking_id.
+- Admin bookings now also displays the full booking ID immediately before the
+  Customer column, using the existing booking response's id.
+
+- Removed the Booking ID columns from admin bookings and payments at the
+  developer’s request, superseding the two column additions above.
+
+## Edit booking reservations (13 Nov 2026)
+
+- Added public PUT /v1/bookings/:booking_id with a complete, nonempty reservations
+  list of explicit room_id/from/duration entries. Returns the existing GET shape
+  with new reservation IDs, UTC timestamps and derived current room categories.
+- Uses stored booking.business_id to reject missing/foreign rooms with 404.
+  All statuses remain editable; booking fields, expiry and payments are preserved.
+  No creation/payment/status flow runs. Offset-free starts mean Malaysia time.
+- Rejects malformed/unsupported input, invalid intervals and overlapping entries
+  for the same room with 400 before writes. Adjacent intervals are allowed;
+  conflicts with other bookings retain the public MVP bypass. No quantity applies.
+- Replacement uses one transactional D1 batch, an explicit atomicity requirement
+  for this endpoint despite broader MVP concurrency/atomicity deferrals.
+- Updated API README and local Postman request. API types and all 81 tests pass,
+  including SQLite-backed replacement, status/expiry/payment preservation,
+  ownership, validation, GET/day readback and injected insert failure rollback.
+  No live writes, migrations or deployment. Installed Postman CLI does not support
+  `postman status`; local collection JSON and request scripts were validated locally.
+
+## Admin reservation editor (13 Nov 2026)
+
+- Added `/bookings/edit/:booking_id`, linked from admin booking details. Each raw
+  reservation gets a separate fixed-count card, including each Racing machine.
+  Controls are date/category/physical room/time/duration with shared admin UI.
+- Configured business roster/hours and per-Malaysia-date overlap queries drive
+  explicit physical-room availability. Shared date requests exclude the edited
+  booking; confirmed and live pending rows block changed intervals. Same-room
+  draft overlaps are rejected; adjacent intervals remain valid.
+- Original intervals retain exact timestamps and minute durations, including
+  past/nonstandard choices and external conflicts. Restoration is explicit;
+  unavailable roster rooms require replacements. Changed intervals use seven
+  Malaysia dates, quarter-hour starts and whole hours ending by closing.
+- Save rechecks availability and PUTs the complete raw list, blocks duplicate
+  submission, retains edits on failure and navigates to refreshed local details.
+  All statuses can be edited; no status/payment changes or persistent drafts.
+  Empty bookings cannot add reservations. Requests have eight-second timeouts,
+  per-date cache isolation and unmount cancellation. API conflict bypass and
+  concurrency limitations remain unchanged.
+- Verification: admin Svelte checking has zero errors/warnings, Worker types are
+  current, production build and whitespace checks pass. All 23 API test files
+  pass, including new editor interval/payload/availability tests. Mocked Chrome
+  at 390px/1440px confirms independent Racing cards, no horizontal overflow,
+  disabled unchanged Save, one shared date read, fresh pre-save read, one full
+  replacement PUT and return to details. No live booking writes or deployment.
+
+- Simplified admin reservation editing: removed visible reservation legends,
+  original-value summaries, their separator lines and the restore-original button.
+  Reservation groups retain accessible names. Confirm now uses the new-booking
+  fixed action-bar placement: desktop right alignment with Cancel to its left;
+  mobile Confirm above Cancel. Cancel is bold and borderless. Original options
+  and unchanged-interval handling remain available through the existing controls.
+
+- Racing room controls in the admin reservation editor now support multiple
+  explicitly selected machines per editor. Each machine uses that editor's date,
+  time and duration and expands to one raw row in the full replacement PUT.
+  This supersedes the fixed physical reservation count for Racing; existing
+  editors remain separate and non-Racing categories still select one room.
+  Common time/duration choices require all selected machines to be free, while
+  original-interval exceptions apply only to the original physical reservation.
+  Empty selections disable Confirm; overlaps across editors remain rejected.
+- Verification: editor helper tests and admin type checking pass with zero
+  diagnostics; production build and whitespace checks pass. Mocked Chrome at
+  390px/1440px confirms multiple pressed Racing room buttons without overflow.
+  Selecting R1+R3 in one editor saves both physical rows and preserves the
+  separate untouched R2/90-minute row, with a fresh availability check and
+  navigation to details. No live booking writes.
+
+- Selecting a category in the admin reservation editor now auto-selects the
+  first configured physical room with an available standard interval and that
+  room's earliest start time. Other draft reservations also block this default
+  selection. Retain the duration if supported, otherwise default to one hour.
+  Racing starts with one selected machine and still supports manual multi-select.
+  This supersedes the earlier no-auto-selection rule for category selection;
+  manual room/date/time changes retain their existing behavior. No availability
+  leaves room/time empty with feedback. Per-row selection versions prevent late
+  availability responses from overwriting newer selections.
+- Verification: editor helper tests, admin type checking (zero diagnostics),
+  production build and whitespace checks pass. Mocked mobile/desktop browser
+  checks confirm category selection defaults to R1/10:00/60 minutes, subsequent
+  Racing multi-selection still works, and Confirm submits the full physical-room
+  list and returns to details. No live writes.
+
+- Matched admin reservation editor labels to customer apps/web: unselected date
+  button months use primary yellow and selected months use black. Duration
+  values use primary yellow, bold centered text and the same minimum width as
+  the customer duration control. Selection behavior and stored values are unchanged.
+- Removed the generic per-reservation “Choose a configured room and an available
+  standard interval.” message from the admin editor. Validation and Confirm
+  eligibility remain unchanged.
+
+- Admin reservation editing now opens exactly one blank selection, defaulting
+  only the Malaysia date to today. It no longer fetches the booking or reads its
+  reservation rows, status or original options. This supersedes prefilled cards,
+  historical-value preservation and the empty-booking restriction in this UI.
+- Category selection still defaults room/time; Racing still permits multiple
+  machines. Confirm PUTs only the newly selected physical rows as the complete
+  replacement list without another confirmation prompt. Availability continues
+  excluding this booking, and each new interval must meet standard availability
+  rules. Cancel, retry/draft retention and refreshed details navigation remain.
+- Verification: admin type checking has zero errors/warnings; production build,
+  whitespace checks and all 23 API test files pass. Mocked Chrome at 390px/1440px
+  confirms one blank selection, zero booking GET requests, disabled initial
+  Confirm, no overflow, category defaults, Racing multi-select and a PUT containing
+  only the new selected machines followed by details navigation. No live writes.
+
+- The fresh admin reservation editor now automatically selects the first
+  category in configured order with an available standard interval, followed by
+  its first free room, earliest time and one-hour duration. Empty/full categories
+  are skipped. This supersedes leaving category/room/time/duration blank on load;
+  existing booking reservations are still not fetched. Defaults also work after
+  availability/configuration retry and do not replace a manually chosen category.
+- Verification: editor helper tests, admin type checking (zero diagnostics),
+  production build and whitespace checks pass. Mocked Chrome at 390px/1440px
+  confirms Family/FR1/earliest available time/60 minutes selected automatically,
+  no booking GET, and working Racing multi-select and replacement saving.
+- Admin reservation editor duration values now display hours (1 hour, 2 hours)
+  matching apps/web. API payloads and availability calculations retain minutes.
+
+- Admin bookings reservation time lines and payments Date / time values now use
+  12-hour times with uppercase AM/PM and no space, such as 10:00AM and 4:00PM.
+  Existing dates and timezone handling are preserved.
+- Recorded both pages' time formatting in the admin frontend design skill.

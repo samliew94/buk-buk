@@ -64,17 +64,18 @@ test('invalid webhook payloads do not dispatch outcomes', async () => {
 
 for (const status of ['paid', 'cancelled', 'rejected']) {
   test(`demo ${status} payment records outcome and updates booking`, async (t) => {
-    // Site-specific configuration migrations (0014+) require ST3 seed data.
+    // Site-specific configuration migrations 0014–0016 require ST3 seed data.
   const db = new DatabaseSync(':memory:')
     t.after(() => db.close())
     const migrations = new URL('../migrations/', import.meta.url)
-    for (const name of readdirSync(migrations).filter(name => name.endsWith('.sql') && name < '0014').sort()) {
+    for (const name of readdirSync(migrations).filter(name => name.endsWith('.sql') && (name < '0014' || name.startsWith('0017'))).sort()) {
       db.exec(readFileSync(new URL(name, migrations), 'utf8'))
     }
     db.exec(`
+      INSERT INTO business(id,name) VALUES ('business-1','Business');
       INSERT INTO customer (id, name, phone) VALUES ('customer-1', 'Guest', '0123');
-      INSERT INTO booking (id, customer_id, status, created_at, expire_at)
-        VALUES ('booking-1', 'customer-1', 'pending', '2026-11-07T00:00:00.000Z', '2026-11-07T00:10:00.000Z');
+      INSERT INTO booking (business_id, id, customer_id, status, created_at, expire_at)
+        VALUES ('business-1', 'booking-1', 'customer-1', 'pending', '2026-11-07T00:00:00.000Z', '2026-11-07T00:10:00.000Z');
       INSERT INTO payment VALUES ('payment-1', 'booking-1', 25, 'pending', '2026-11-07T00:00:00.000Z');
     `)
     const d1 = {

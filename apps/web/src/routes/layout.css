@@ -1,5 +1,6 @@
 @import 'tailwindcss';
-@import './customer/app.css';
+@import '@booking/ui/theme.css';
+@source '../../../../packages/ui';
 
 :root {
 	--grey: #9a9a9a;

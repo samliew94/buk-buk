@@ -77,6 +77,38 @@ bookings.post('/', async (c) => {
     throw new BadRequestError('quantity must be an integer from 1 to 4 | field: quantity')
   }
   const roomCategoryId = readId(body.room_category_id, 'room_category_id')
-  const result = await c.get('dependencies').createBooking.exec(businessId, customerId, from, duration, roomCategoryId, body.quantity as number | undefined)
+  const result = await c.get('dependencies').createBooking.exec(businessId, customerId, from, duration, roomCategoryId, (body.quantity as number | undefined) ?? 1, true)
   return c.json({ booking_id: result.booking_id.value, payment_url: result.payment_url }, 201)
+})
+
+bookings.put('/:bookingId', async (c) => {
+  const body = await readBody(c.req.raw)
+  if (Object.keys(body).some(key => key !== 'reservations')) {
+    throw new BadRequestError('unsupported field | resource: booking')
+  }
+  if (!Array.isArray(body.reservations) || body.reservations.length === 0) {
+    throw new BadRequestError('expected a nonempty array | field: reservations')
+  }
+  const reservations = body.reservations.map((entry: unknown, index: number) => {
+    const field = 'reservations.' + index
+    if (!entry || typeof entry !== 'object' || Array.isArray(entry)) {
+      throw new BadRequestError('expected an object | field: ' + field)
+    }
+    const row = entry as Record<string, unknown>
+    if (Object.keys(row).some(key => !['room_id', 'from', 'duration'].includes(key))) {
+      throw new BadRequestError('unsupported field | field: ' + field)
+    }
+    const roomId = readId(row.room_id, field + '.room_id')
+    const from = readDateTime(row.from, field + '.from')
+    if (typeof row.duration !== 'number' || !Number.isFinite(row.duration) || row.duration <= 0) {
+      throw new BadRequestError('expected finite positive minutes | field: ' + field + '.duration')
+    }
+    const to = from.plus({ minutes: row.duration })
+    if (!to.isValid || to.toMillis() <= from.toMillis()) {
+      throw new BadRequestError('invalid calculated end time | field: ' + field + '.duration')
+    }
+    return { room_id: roomId.value, from: from.toUTC().toISO()!, to: to.toUTC().toISO()! }
+  })
+  return c.json(await c.get('dependencies').updateBooking.exec(
+    readId(c.req.param('bookingId'), 'booking_id'), reservations))
 })

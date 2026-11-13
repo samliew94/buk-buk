@@ -84,7 +84,7 @@ test('temporary assignment bypass preserves deterministic ordering, business sco
     [3, 'r3', '07:30', '08:00'],
   ] as const) {
     db.prepare(
-      "INSERT INTO booking VALUES (?, 'c', 'confirmed', 'now', 'now')",
+      "INSERT INTO booking (business_id, id, customer_id, status, created_at, expire_at) VALUES ('a', ?, 'c', 'confirmed', 'now', 'now')",
     ).run('b' + i)
     db.prepare('INSERT INTO room_reservation VALUES (?, ?, ?, ?, ?, ?)').run(
       'res' + i,

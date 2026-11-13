@@ -15,7 +15,7 @@ function readId(value: unknown, field: string): Guid {
 }
 
 async function requireCategory(dependencies: Dependencies, id: Guid) {
-  await dependencies.requireRoomCategory.exec(id)
+  await dependencies.queryRoomCategory.query(id)
 }
 
 async function requireBusiness(dependencies: Dependencies, businessId: Guid) {

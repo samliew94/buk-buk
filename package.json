@@ -1,7 +1,8 @@
 {
   "scripts": {
     "dev": "turbo dev",
-    "types": "turbo types"
+    "types": "turbo types",
+    "build": "turbo build"
   },
   "devDependencies": {
     "turbo": "^2.10.11"

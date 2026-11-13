@@ -25,9 +25,8 @@ export class QueryBookings {
       JOIN booking b ON b.id = r.booking_id
       JOIN customer ON customer.id = b.customer_id
       JOIN room ON room.id = r.room_id
-      JOIN room_category current ON current.id = room.room_category_id
       JOIN room_category requested ON requested.id = r.room_category_id
-      WHERE current.business_id = ? AND r."from" < ? AND r."to" > ?
+      WHERE b.business_id = ? AND r."from" < ? AND r."to" > ?
         AND (b.status != 'pending' OR b.expire_at > ?)
       ORDER BY r."from", room.sort_order, room.name, room.id, r.id
     `).bind(businessId.value, day.nextDay().toUtcIso(), day.toUtcIso(), MyDateTime.now().toUtcIso())

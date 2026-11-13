@@ -56,7 +56,7 @@
 
 	$effect(() => {
 		if (!redirectReference) return;
-		const destination = `/customer/payments/${encodeURIComponent(redirectReference)}`;
+		const destination = `/payments/${encodeURIComponent(redirectReference)}`;
 		countdown = 3;
 		let remaining = 3;
 		const timer = window.setInterval(() => {

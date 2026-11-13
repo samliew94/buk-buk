@@ -14,12 +14,7 @@ export class QueryPayments {
       FROM payment p
       JOIN booking b ON b.id = p.booking_id
       JOIN customer ON customer.id = b.customer_id
-      WHERE p.created_at >= ? AND p.created_at < ? AND EXISTS (
-        SELECT 1 FROM room_reservation r
-        JOIN room ON room.id = r.room_id
-        JOIN room_category c ON c.id = room.room_category_id
-        WHERE r.booking_id = p.booking_id AND c.business_id = ?
-      )
+      WHERE p.created_at >= ? AND p.created_at < ? AND b.business_id = ?
       ORDER BY p.created_at DESC, p.id DESC
     `).bind(day.toUtcIso(), day.nextDay().toUtcIso(), businessId.value).all<PaymentRow>()
     return results

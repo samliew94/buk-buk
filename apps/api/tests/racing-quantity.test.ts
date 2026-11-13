@@ -15,7 +15,8 @@ test('Racing quantities validate, allocate distinct ordered machines, and tempor
  const create=(quantity?:unknown, category='r',from='2030-01-01T02:00:00.000Z',duration=60)=>app.request('/v1/bookings',{method:'POST',body:JSON.stringify({business_id:'a',customer_id:'c',room_category_id:category,from,duration,...(quantity===undefined?{}:{quantity})})},{DB:d1})
  const counts=()=>['booking','room_reservation','payment','demo_payment_order'].map(table=>db.prepare(`SELECT count(*) n FROM ${table}`).get()!.n)
  for(const q of [null,'2',0,5,1.5,true]) assert.equal((await create(q)).status,400)
- assert.equal((await create(2,'f')).status,400)
+ assert.equal((await create(2,'f')).status,201)
+ db.exec('DELETE FROM room_reservation; DELETE FROM booking;')
  for(const category of ['foreign','missing']) assert.equal((await create(2,category)).status,404)
  for(const q of [undefined,1,2,3,4]) {
   db.exec('DELETE FROM room_reservation; DELETE FROM booking;')
@@ -57,7 +58,7 @@ test('Racing temporarily allows full-interval conflicts and bypasses upfront pay
  INSERT INTO room_category VALUES ('r','a','RACING','RACING',0);
  INSERT INTO room VALUES ('1','r','R1',1),('2','r','R2',2);
  INSERT INTO upfront_payment_policy VALUES ('a',0);
- INSERT INTO booking VALUES ('b1','c','confirmed','now','now'),('b2','c','confirmed','now','now');
+ INSERT INTO booking (business_id, id, customer_id, status, created_at, expire_at) VALUES ('a', 'b1','c','confirmed','now','now'),('a', 'b2','c','confirmed','now','now');
  INSERT INTO room_reservation VALUES ('res1','b1','1','2030-01-01T02:00:00.000Z','2030-01-01T02:30:00.000Z','r'),('res2','b2','2','2030-01-01T02:30:00.000Z','2030-01-01T03:00:00.000Z','r');`)
  const app=createApp();const create=(from:string,quantity:number)=>app.request('/v1/bookings',{method:'POST',body:JSON.stringify({business_id:'a',customer_id:'c',room_category_id:'r',from,duration:60,quantity})},{DB:d1})
  assert.equal((await create('2030-01-01T02:00:00.000Z',1)).status,201)

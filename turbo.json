@@ -2,14 +2,37 @@
   "$schema": "https://turborepo.dev/schema.json",
   "tasks": {
     "build": {
-      "outputs": ["dist/**"]
+      "dependsOn": [
+        "^build"
+      ],
+      "outputs": [
+        "dist/**",
+        ".svelte-kit/output/**",
+        ".svelte-kit/cloudflare/**"
+      ],
+      "env": [
+        "PUBLIC_*"
+      ]
     },
     "check-types": {
-      "dependsOn": ["^check-types"]
+      "dependsOn": [
+        "^check-types"
+      ]
     },
     "dev": {
       "persistent": true,
-      "cache": false
+      "cache": false,
+      "env": [
+        "PUBLIC_*"
+      ]
+    },
+    "types": {
+      "dependsOn": [
+        "^types"
+      ],
+      "env": [
+        "PUBLIC_*"
+      ]
     }
   }
 }

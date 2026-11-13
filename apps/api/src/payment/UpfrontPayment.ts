@@ -13,7 +13,7 @@ export class UpfrontPayment {
   }
 
   static async fromRowResult(result: any) {
-    if (!result) return null;
+    if (!result || result.price === 0) return null;
     return new UpfrontPayment(new Money(result.price));
   }
 
