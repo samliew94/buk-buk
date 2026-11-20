@@ -1,3 +1,4 @@
+import { requireAccessToken } from '../middleware/auth.middleware'
 import { Hono } from 'hono'
 import type { AppEnv, Dependencies } from '../dependencies'
 import { BadRequestError, NotFoundError } from '../errors'
@@ -85,7 +86,7 @@ roomCategories.query('/', async (c) => {
   return c.json(result)
 })
 
-roomCategories.post('/', async (c) => {
+roomCategories.post('/', requireAccessToken, async (c) => {
   const { business_id: businessId, name, sort_order: sortOrder, acronym } = await readCategoryInput(
     c.req.raw,
   )
@@ -111,7 +112,7 @@ roomCategories.post('/', async (c) => {
   )
 })
 
-roomCategories.put('/:id', async (c) => {
+roomCategories.put('/:id', requireAccessToken, async (c) => {
   const { business_id: businessId, name, sort_order: sortOrder, acronym } = await readCategoryInput(
     c.req.raw,
   )

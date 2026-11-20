@@ -1,11 +1,11 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { createApp } from '../src/index'
+import { createStaffTestApp } from './staff'
 import { createDependencies } from '../src/dependencies'
 
 function fixture() {
   const rows = new Map<string, { id: string; name: string }>()
-  const app = createApp((env) => ({
+  const app = createStaffTestApp((env) => ({
     ...createDependencies(env),
     createBusiness: { exec: async (id, name) => {
       rows.set(id.value, { id: id.value, name: name.value })

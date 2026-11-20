@@ -1,3 +1,4 @@
+import { requireAccessToken } from '../middleware/auth.middleware'
 import { Hono } from 'hono'
 import { DateTime } from 'luxon'
 import type { AppEnv } from '../dependencies'
@@ -39,7 +40,7 @@ function readDateTime(value: unknown, field: string) {
 
 export const bookings = new Hono<AppEnv>()
 
-bookings.query('/', async (c) => {
+bookings.query('/', requireAccessToken, async (c) => {
   const body = await readBody(c.req.raw)
   if (Object.keys(body).some(key => !['business_id', 'date'].includes(key))) {
     throw new BadRequestError('unsupported filter | resource: bookings')
@@ -81,7 +82,7 @@ bookings.post('/', async (c) => {
   return c.json({ booking_id: result.booking_id.value, payment_url: result.payment_url }, 201)
 })
 
-bookings.put('/:bookingId', async (c) => {
+bookings.put('/:bookingId', requireAccessToken, async (c) => {
   const body = await readBody(c.req.raw)
   if (Object.keys(body).some(key => key !== 'reservations')) {
     throw new BadRequestError('unsupported field | resource: booking')

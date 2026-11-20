@@ -9,6 +9,7 @@
     "test": "tsx --test tests/*.test.ts"
   },
   "dependencies": {
+    "@block65/webcrypto-web-push": "2.0.0",
     "hono": "^4.13.7",
     "jsonwebtoken": "^9.0.3",
     "luxon": "^3.7.2",

@@ -14,10 +14,10 @@ export function groupBookingReservations(reservations: BookingReservation[]) {
 	const groups: (BookingReservation & { rooms: string[]; quantity: number })[] = [];
 	for (const reservation of reservations) {
 		const existing =
-			reservation.room_category_acronym === 'RACING'
+			reservation.room_category_acronym?.toUpperCase() === 'RACING'
 				? groups.find(
 						(group) =>
-							group.room_category_acronym === 'RACING' &&
+							group.room_category_acronym?.toUpperCase() === 'RACING' &&
 							group.room_category_id === reservation.room_category_id &&
 							group.from === reservation.from &&
 							group.to === reservation.to

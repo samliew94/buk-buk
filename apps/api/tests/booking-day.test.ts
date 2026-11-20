@@ -1,7 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { fixture } from './sqlite'
-import { createApp } from '../src/index'
+import { createStaffTestApp } from './staff'
 import { MyDateTime } from '../src/utils/MyDateTime'
 import { DateTime } from 'luxon'
 
@@ -14,7 +14,7 @@ test('booking roster groups categories before ordering physical rooms', async t 
     INSERT INTO room_category VALUES ('open','a','Open','OPEN',2),('vip','a','VIP','VIP',3),('racing','a','Racing','RACING',4);
     INSERT INTO room VALUES ('r4','racing','R4',4),('vip','vip','VIP',1),('r2','racing','R2',2),('os4','open','OS4',1),('r1','racing','R1',1),('r3','racing','R3',3);
   `)
-  const response = await createApp().request('/v1/bookings', {
+  const response = await createStaffTestApp().request('/v1/bookings', {
     method: 'QUERY', body: JSON.stringify({ business_id: 'a', date })
   }, { DB: d1 })
   assert.equal(response.status, 200)
@@ -47,7 +47,7 @@ test('booking day query uses stored business scope, strict overlap, full interva
   db.exec("UPDATE booking SET business_id = 'b' WHERE id = 'foreign'")
   insert('moved', 'confirmed', 'z', '2026-11-12T03:00:00.000Z', '2026-11-12T04:00:00.000Z', 'cb')
   db.prepare("UPDATE booking SET expire_at = '2026-11-12T00:00:00.001Z' WHERE id = 'pending'").run()
-  const app = createApp()
+  const app = createStaffTestApp()
   const query = (business_id: string, day = date) => app.request('/v1/bookings', { method: 'QUERY', body: JSON.stringify({ business_id, date: day }) }, { DB: d1 })
   const response = await query('a')
   assert.equal(response.status, 200)
@@ -84,7 +84,7 @@ test('booking day query uses stored business scope, strict overlap, full interva
 })
 
 test('booking day endpoint rejects malformed dates/bodies and range filters, and permits QUERY preflight', async () => {
-  const app = createApp()
+  const app = createStaffTestApp()
   const invalid: unknown[] = [null, [], 1, {}, { date }, { business_id: '', date }, { business_id: 3, date },
     ...['2026-02-30', '2026-11-12T00:00:00+08:00', '20261112', '2026-1-01', '2026-13-01', ' 2026-11-12', null, 123].map(date => ({ business_id: 'a', date })),
     { business_id: 'a', from: date, to: date }, { business_id: 'a', date, from: date }, { business_id: 'a', date, to: date }]

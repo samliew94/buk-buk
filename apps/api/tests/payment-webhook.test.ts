@@ -24,7 +24,7 @@ function setup() {
   }))
   const send = (body: string) => app.request('/webhook/payment/demo', {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body,
-  }, { JWT_SECRET: 'test-secret', ADMIN_PASSWORD: 'test-password' })
+  }, { JWT_SECRET: 'test-secret', JWT_REFRESH_SECRET: 'test-password' })
   return { outcomes, send }
 }
 
@@ -68,7 +68,7 @@ for (const status of ['paid', 'cancelled', 'rejected']) {
   const db = new DatabaseSync(':memory:')
     t.after(() => db.close())
     const migrations = new URL('../migrations/', import.meta.url)
-    for (const name of readdirSync(migrations).filter(name => name.endsWith('.sql') && (name < '0014' || name.startsWith('0017'))).sort()) {
+    for (const name of readdirSync(migrations).filter(name => name.endsWith('.sql') && (name < '0014' || name >= '0017')).sort()) {
       db.exec(readFileSync(new URL(name, migrations), 'utf8'))
     }
     db.exec(`
@@ -82,8 +82,9 @@ for (const status of ['paid', 'cancelled', 'rejected']) {
       prepare(sql: string) {
         return { bind(...values: (string | number)[]) {
           return {
+            async all() { return { results: db.prepare(sql).all(...values) } },
             async first() { return db.prepare(sql).get(...values) ?? null },
-            async run() { db.prepare(sql).run(...values); return { success: true } },
+            async run() { return { success: true, meta: { changes: Number(db.prepare(sql).run(...values).changes) } } },
           }
         } }
       },

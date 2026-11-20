@@ -1,6 +1,6 @@
 export class HttpError extends Error {
   constructor(
-    public readonly status: 400 | 401 | 403 | 404 | 409 | 500,
+    public readonly status: 400 | 401 | 403 | 404 | 409 | 410 | 429 | 502 | 503 | 504 | 500,
     message: string,
   ) {
     super(message);
@@ -46,7 +46,7 @@ export class InternalServerError extends HttpError {
 
 export function errorResponseMessage(error: unknown): {
   message: string;
-  status: 400 | 401 | 403 | 404 | 409 | 500;
+  status: 400 | 401 | 403 | 404 | 409 | 410 | 429 | 502 | 503 | 504 | 500;
 } {
   if (error instanceof HttpError) {
     return { message: error.message, status: error.status };

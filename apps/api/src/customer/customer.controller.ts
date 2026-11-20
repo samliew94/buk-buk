@@ -1,3 +1,4 @@
+import { requireAccessToken } from '../middleware/auth.middleware'
 import { Hono } from 'hono'
 import type { AppEnv } from '../dependencies'
 import { BadRequestError } from '../errors'
@@ -28,7 +29,7 @@ async function readInput(request: Request) {
 
 export const customers = new Hono<AppEnv>()
 
-customers.get('/:id', async (c) => {
+customers.get('/:id', requireAccessToken, async (c) => {
   const customer = await c.get('dependencies').queryCustomer.query(Guid.from(c.req.param('id')))
   return c.json(customer)
 })
@@ -40,7 +41,7 @@ customers.post('/', async (c) => {
   return c.json({ id: id.value, name: name.value, phone: phone.value }, 201)
 })
 
-customers.put('/:id', async (c) => {
+customers.put('/:id', requireAccessToken, async (c) => {
   const { name, phone } = await readInput(c.req.raw)
   const id = Guid.from(c.req.param('id'))
   await c.get('dependencies').updateCustomer.exec(Customer.from(id, name, phone))

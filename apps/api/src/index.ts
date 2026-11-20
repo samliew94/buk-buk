@@ -1,6 +1,8 @@
+import { webPush } from './web-push/web-push.controller'
 import { roomCategories } from './room-category/room-category.controller'
 import { Hono } from 'hono'
 import { cors } from 'hono/cors'
+import { usersController } from './users/users.controller'
 import { auth } from './auth/auth.controller'
 import { business } from './business/business.controller'
 import { customers } from './customer/customer.controller'
@@ -28,7 +30,9 @@ export function createApp(dependencyFactory: DependencyFactory = createDependenc
     await next()
   })
   app.get('/', (c) => c.json({ name: 'booking-api', status: 'ok' }))
+  app.route('/v1/web-push-subscriptions', webPush)
   app.route('/v1/auth', auth)
+  app.route('/v1/users', usersController)
   app.route('/v1/businesses', business)
   app.route('/v1/customers', customers)
   app.route('/v1/rooms', rooms)

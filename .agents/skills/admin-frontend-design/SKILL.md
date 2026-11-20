@@ -5,6 +5,14 @@ description: Build or revise admin screens in apps/admin, including /bookings an
 
 # Admin frontend design
 
+- Use `var(--color-booking-muted)` for admin text-entry labels, including
+  Username and Password on `/login`. Use `var(--color-booking-white)` for
+  the entered text.
+- For admin text-entry fields with a visible border, including `/login`, use
+  `var(--color-booking-white)` at rest. On mouse or keyboard focus, change that
+  same border to `var(--color-booking-primary)` and suppress any additional
+  focus outline or ring on the field. Keep the border width constant.
+
 - On `/bookings` and `/payments`, date picker controls have no border, a primary-yellow background (`var(--color-booking-primary)`, `#FFF000`) and black text (`var(--color-booking-black)`, `#000000`).
 - These pages display a formatted date inside `.date-control` with a transparent native date input covering it. Apply visible colors and border to the wrapper; retain native date selection, the associated label and keyboard focus indication. Use the light color scheme for the native input.
 - On `/bookings`, reservation time lines use 12-hour time with uppercase AM/PM and no space or leading hour zero, such as `10:00AM` and `4:00PM` (Luxon `h:mma`). Use the same time format within `/payments` Date / time values (`dd LLL yyyy h:mma`). Preserve each page's existing timezone handling.

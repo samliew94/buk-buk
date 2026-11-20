@@ -116,7 +116,10 @@
 			</dl>
 			<hr class="booking-divider" />
 			{#each reservations as reservation, index (reservation.id)}
-				<dl class="detail-rows mt-4" aria-label={`Reservation ${index + 1}`}>
+				<dl
+					class="detail-rows mt-4 grid-cols-2 items-start sm:grid-cols-1"
+					aria-label={`Reservation ${index + 1}`}
+				>
 					<div>
 						<dt>Date</dt>
 						<dd>{local(reservation.from).toFormat('ccc d LLL yyyy')}</dd>
@@ -124,14 +127,18 @@
 					<div>
 						<dt>Room</dt>
 						<dd class="break-words">
-							{reservation.room_category_name}{reservation.room_category_acronym === 'RACING'
+							{reservation.room_category_name}{reservation.room_category_acronym?.toUpperCase() === 'RACING'
 								? ` × ${reservation.quantity}`
 								: ''} · {reservation.rooms.join(', ')}
 						</dd>
 					</div>
 					<div>
 						<dt>Time</dt>
-						<dd>{local(reservation.from).toFormat('h:mma')}</dd>
+						<dd>
+							{local(reservation.from).toFormat('h:mma')} - {local(reservation.to).toFormat(
+								'h:mma'
+							)}
+						</dd>
 					</div>
 					<div>
 						<dt>Duration</dt>

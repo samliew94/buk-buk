@@ -1,3 +1,4 @@
+import { requireAccessToken } from '../middleware/auth.middleware'
 import { Hono } from 'hono'
 import type { AppEnv } from '../dependencies'
 import { BadRequestError, NotFoundError } from '../errors'
@@ -6,7 +7,7 @@ import { Name } from '../value-objects/Name'
 
 export const business = new Hono<AppEnv>()
 
-business.put('/:id', async (c) => {
+business.put('/:id', requireAccessToken, async (c) => {
   let body: unknown
   try {
     body = await c.req.json()
@@ -34,7 +35,7 @@ business.get('/:id', async (c) => {
   
   return c.json(business)})
 
-business.post('/', async (c) => {
+business.post('/', requireAccessToken, async (c) => {
   let body: unknown
   try {
     body = await c.req.json()

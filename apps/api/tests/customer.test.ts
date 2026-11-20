@@ -11,7 +11,7 @@ import { Guid } from '../src/value-objects/Guid';
 import { Name } from '../src/value-objects/Name';
 import { Phone } from '../src/value-objects/Phone';
 import { NotFoundError } from '../src/errors';
-import { createApp } from '../src/index';
+import { createStaffTestApp } from './staff';
 
 const migrations = new URL('../migrations/', import.meta.url);
 const customerMigration = readFileSync(new URL('0006_create_customer.sql', migrations), 'utf8');
@@ -39,7 +39,7 @@ function fixture() {
       };
     },
   } as unknown as D1Database;
-  const app = createApp();
+  const app = createStaffTestApp();
   return {
     db, create: new CreateCustomer(d1), update: new UpdateCustomer(d1), query: new QueryCustomer(d1),
     request: (path: string, init?: RequestInit) => app.request(path, init, { DB: d1 }),

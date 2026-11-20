@@ -1,7 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { fixture } from './sqlite'
-import { createApp } from '../src/index'
+import { createStaffTestApp } from './staff'
 const date = '2026-11-12'
 
 test('payments preserve history, order, day boundaries and stored business scope without duplicates', async t => {
@@ -23,7 +23,7 @@ test('payments preserve history, order, day boundaries and stored business scope
   insert('last', '2026-11-12T15:59:59.999Z', 'rejected')
   insert('end', '2026-11-12T16:00:00.000Z', 'paid')
   insert('foreign', '2026-11-12T01:00:00.000Z', 'paid', 'other')
-  const query = (business_id: string, day = date) => createApp().request('/v1/payments', { method: 'QUERY', body: JSON.stringify({ business_id, date: day }) }, { DB: d1 })
+  const query = (business_id: string, day = date) => createStaffTestApp().request('/v1/payments', { method: 'QUERY', body: JSON.stringify({ business_id, date: day }) }, { DB: d1 })
   db.exec("UPDATE room SET room_category_id = 'cb' WHERE id IN ('r1','r2')")
   const response = await query('a')
   assert.equal(response.status, 200)
@@ -38,7 +38,7 @@ test('payments preserve history, order, day boundaries and stored business scope
 })
 
 test('payment day endpoint rejects malformed dates/bodies and range filters, and permits QUERY preflight', async () => {
-  const app = createApp()
+  const app = createStaffTestApp()
   const invalid: unknown[] = [null, [], 1, {}, { date }, { business_id: '', date }, { business_id: 3, date },
     ...['2026-02-30', '2026-11-12T00:00:00+08:00', '20261112', '2026-1-01', '2026-13-01', ' 2026-11-12', null, 123].map(date => ({ business_id: 'a', date })),
     { business_id: 'a', from: date, to: date }, { business_id: 'a', date, from: date }, { business_id: 'a', date, to: date }]

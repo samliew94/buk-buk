@@ -1,3 +1,7 @@
+import { SendWebPushNotification } from './web-push/SendWebPushNotification'
+import { SendTestWebPush } from './web-push/SendTestWebPush'
+import { DeregisterWebPush } from './web-push/DeregisterWebPush'
+import { RegisterWebPush } from './web-push/RegisterWebPush'
 import { UpdateBooking } from './booking/UpdateBooking'
 import { QueryPayments } from './payment/QueryPayments'
 import { QueryRoomCategories } from './room-category/QueryRoomCategories'
@@ -6,7 +10,14 @@ import { CreateRoomCategory } from './room-category/CreateRoomCategory'
 import { QueryBookings } from './booking/QueryBookings'
 import { QueryBooking } from './booking/QueryBooking'
 import { QueryDemoPaymentOrder } from './payment/QueryDemoPaymentOrder'
-import { AuthService, type AuthenticationService } from './auth/auth.service'
+import { Login } from './auth/Login'
+import { RefreshToken } from './auth/RefreshToken'
+import { VerifyAccessToken } from './auth/VerifyAccessToken'
+import { SessionTokens } from './auth/SessionTokens'
+import { QueryUsers } from './users/QueryUsers'
+import { QueryUser } from './users/QueryUser'
+import { CreateUser } from './users/CreateUser'
+import { UpdateUser } from './users/UpdateUser'
 import type { Principal } from './auth/auth.types'
 import type { Env } from './types/env'
 import { CreateBusiness } from './business/CreateBusiness'
@@ -36,11 +47,15 @@ import { HandleDemoPaymentWebhook } from './payment/HandleDemoPaymentWebhook'
 import { QueryPayment } from './payment/QueryPayment'
 import { ConfirmPayment } from './payment/ConfirmPayment'
 import { ConfirmBooking } from './booking/ConfirmBooking'
+import { SendBookingConfirmedNotification } from './booking/SendBookingConfirmedNotification'
 import { CancelPayment } from './payment/CancelPayment'
 import { SubmitDemoPayment } from './payment/SubmitDemoPayment'
 import { CancelBooking } from './booking/CancelBooking'
 
 export interface Dependencies {
+  sendTestWebPush: Pick<SendTestWebPush, 'execForDevelopers'>
+  registerWebPush: Pick<RegisterWebPush, 'exec'>
+  deregisterWebPush: Pick<DeregisterWebPush, 'exec'>
   queryPayments: Pick<QueryPayments, 'query'>
   queryPayment: Pick<QueryPayment, 'query'>
   queryRoomCategory: Pick<QueryRoomCategory, 'query'>
@@ -53,7 +68,13 @@ export interface Dependencies {
   queryDemoPaymentOrder: Pick<QueryDemoPaymentOrder, 'query'>
   submitDemoPayment: Pick<SubmitDemoPayment, 'exec'>
   handleDemoPaymentWebhook: Pick<HandleDemoPaymentWebhook, 'exec'>
-  authService: AuthenticationService
+  login: Pick<Login, 'exec'>
+  refreshToken: Pick<RefreshToken, 'exec'>
+  verifyAccessToken: Pick<VerifyAccessToken, 'exec'>
+  queryUsers: Pick<QueryUsers, 'query'>
+  queryUser: Pick<QueryUser, 'query'>
+  createUser: Pick<CreateUser, 'exec'>
+  updateUser: Pick<UpdateUser, 'exec'>
   createBusiness: Pick<CreateBusiness, 'exec'>
   queryBusiness: Pick<QueryBusiness, 'query'>
   updateBusiness: Pick<UpdateBusiness, 'exec'>
@@ -77,11 +98,17 @@ export type AppEnv = {
 
 // The composition root: controllers depend on interfaces, not concrete services.
 export const createDependencies: DependencyFactory = (env) => {
+  const sendWebPushNotification = new SendWebPushNotification(env.DB, env)
+  const sendBookingConfirmedNotification = new SendBookingConfirmedNotification(env.DB, sendWebPushNotification)
   const handleDemoPaymentWebhook = new HandleDemoPaymentWebhook(
-    new ConfirmPayment(env.DB, new QueryPayment(env.DB)), new ConfirmBooking(env.DB),
+    new ConfirmPayment(env.DB, new QueryPayment(env.DB)), new ConfirmBooking(env.DB, sendBookingConfirmedNotification),
     new CancelPayment(env.DB, new QueryPayment(env.DB)), new CancelBooking(env.DB),
   )
+  const tokens = new SessionTokens(env.JWT_SECRET, env.JWT_REFRESH_SECRET)
   return {
+    sendTestWebPush: new SendTestWebPush(env.DB, sendWebPushNotification),
+    registerWebPush: new RegisterWebPush(env.DB, env),
+    deregisterWebPush: new DeregisterWebPush(env.DB),
     queryPayments: new QueryPayments(env.DB),
     queryPayment: new QueryPayment(env.DB),
     queryRoomCategory: new QueryRoomCategory(env.DB),
@@ -94,7 +121,13 @@ export const createDependencies: DependencyFactory = (env) => {
     queryDemoPaymentOrder: new QueryDemoPaymentOrder(env.DB),
     handleDemoPaymentWebhook,
     submitDemoPayment: new SubmitDemoPayment(env.DB, handleDemoPaymentWebhook),
-    authService: new AuthService(env.JWT_SECRET, env.ADMIN_PASSWORD),
+    login: new Login(env.DB, tokens),
+    refreshToken: new RefreshToken(tokens),
+    verifyAccessToken: new VerifyAccessToken(tokens),
+    queryUsers: new QueryUsers(env.DB),
+    queryUser: new QueryUser(env.DB),
+    createUser: new CreateUser(env.DB),
+    updateUser: new UpdateUser(env.DB),
     createBusiness: new CreateBusiness(env.DB),
     queryBusiness: new QueryBusiness(env.DB),
     updateBusiness: new UpdateBusiness(env.DB),
@@ -117,6 +150,7 @@ export const createDependencies: DependencyFactory = (env) => {
       )),
       new QueryAvailableRooms(env.DB),
       new QueryRoomCategory(env.DB),
+      sendBookingConfirmedNotification,
     ),
     queryReservations: new QueryReservations(env.DB),
   }

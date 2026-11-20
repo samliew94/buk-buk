@@ -1,5 +1,9 @@
 # 07 Nov 2026
 
+- Renamed Wrangler projects to `bukbuk-customer` (apps/web), `bukbuk-admin`
+  (apps/admin), and `bukbuk-api` (apps/api) on 14 Nov 2026, aligning the
+  frontend Worker names with the intended production hosts. No deployment performed.
+
 - Shared customer TopNav hamburger now opens a right-side black drawer with a
   white overlay at 33% opacity. Its only link is New Reservation, pointing to
   `/customer/bookings/new`, in white 14px Montserrat Regular with primary-yellow
@@ -1218,3 +1222,373 @@ the saved collection was updated locally without publishing.
   12-hour times with uppercase AM/PM and no space, such as 10:00AM and 4:00PM.
   Existing dates and timezone handling are preserved.
 - Recorded both pages' time formatting in the admin frontend design skill.
+
+
+## Admin PWA and VAPID PRDs (13 Nov 2026)
+
+- Added proposed sequential PRDs 0002–0006: admin installation; network-only
+  worker lifecycle; VAPID/subscription backend; notification controls, minimal
+  session bridge and push handlers; then test delivery and rollout verification.
+- PWA applies only to apps/admin on its own origin. Customer apps/web remains
+  unchanged. Offline operational caching and mutation replay are outside scope.
+- Existing API auth primitives are available, but admin has no session UI. New
+  push features require authenticated ownership and explicit server-side business
+  authorization; current shared admin identity does not identify individual staff.
+- Automatic booking/payment notifications and durable queues remain future work.
+  Documentation only: no runtime implementation, secrets, migration or deployment.
+
+## Admin PWA installation — 0002 (13 Nov 2026)
+
+- Implemented admin-only installation metadata: name/short name BUK BUK,
+  description Booking App, English, stable ID/scope /, standalone /calendar
+  launch, #FFF000 theme and #000000 background. This supersedes PRD 0002's
+  proposed Booking Admin/Admin identity. Existing page titles/navigation remain.
+- Added local supplied 192px/512px branding PNGs, a separate 512px maskable
+  variant with 384px source and 64px yellow padding, and a 180px Apple touch icon.
+  Head links use SvelteKit asset placeholders. Admin README documents HTTPS,
+  localhost, browser installation and iOS Add to Home Screen.
+- Admin check has zero errors/warnings and production build passes. Chrome
+  DevTools parses the expected manifest metadata with no manifest/installability
+  errors. All five public resources return 200 with correct content types;
+  PNG dimensions and maskable dark-branding safe-circle bounds verified.
+- Actual installation/standalone launch remains manual: this headless Chrome
+  lacks PWA.install/PWA.launch commands, and no iOS device was available.
+  Chrome reports no worker prerequisite and zero registered workers. Versions
+  requiring a worker await 0003. Actual distinct admin/customer HTTPS production
+  origins must be verified and recorded before root-scoped worker registration.
+- No customer source changes, service worker, API/database changes, permissions,
+  offline behavior or deployment. Existing diary and proposed later PRDs retained.
+
+- At the developer’s request, the admin manifest now references the supplied
+  CDN icon-192.png and icon-512.png URLs directly. Removed duplicate local
+  originals; derived maskable and Apple touch icons remain local. This
+  supersedes the local-original-icon decision above.
+- CDN switch verification: both URLs return 200 image/png with expected
+  192×192/512×512 dimensions; manifest references and duplicate removal checked.
+  Admin production build and whitespace checks pass.
+
+- Removed the optional admin maskable 512px icon and its manifest entry at the
+  developer’s request. No replacement branding is needed; the manifest retains
+  the two CDN icons with purpose any. The local Apple touch icon remains.
+  This supersedes the earlier maskable-icon requirement in 0002.
+
+- Removed the local Apple touch icon and its document-head link at the
+  developer’s request. The maskable icon was already removed. Admin now uses
+  only the two CDN manifest icons; no local icon assets remain. This supersedes
+  the earlier decision to retain the Apple touch icon. Manifest/head references
+  and whitespace checks pass.
+
+## Admin service worker lifecycle — 0003 (13 Nov 2026)
+
+- Added one admin-only SvelteKit worker entry with build-version installation
+  diagnostics. Disabled automatic registration in Vite; root layout registers
+  once on mount in production secure supported browsers only when the existing
+  validated customer origin differs. Registration errors warn without blocking UI.
+- Network-only: no fetch/cache/offline/replay/push behavior, skipWaiting, claim,
+  reload or update prompt. Browser-managed waiting preserves unsaved drafts.
+- README documents preview on 4174 with separate customer preview on 4173,
+  lifecycle, targeted scope/script unregister, and rollback retaining an inert
+  worker URL. Customer source, dependencies, APIs and database unchanged.
+- Local checks: current Wrangler types, zero Svelte errors/warnings and two
+  production builds passed. Used installed binaries because pnpm's engine-store
+  lock was read-only. Chrome verified one root registration, JavaScript MIME,
+  initial page unclaimed, zero customer-preview/development registrations,
+  offline failures and unchanged Cache Storage including an unrelated sentinel.
+  A replacement waited while the unsaved contact form and page-memory marker
+  survived, then activated after the controlled page left and reopened.
+- Mocked booking/payment POSTs reached the browser network layer; offline
+  failures produced zero replay requests after reconnecting. Simulated rejected
+  registration warned while navigation remained available. Changed admin source
+  and README formatting checks and whitespace checks passed.
+- Missing service-worker support and insecure-context simulations also retained
+  normal navigation without registration.
+- Developer manually verified 0003 on localhost:4174: active admin worker,
+  controller script URL http://localhost:4174/service-worker.js, and calendar
+  displayed as a controlled client. DevTools Clients intermittently appeared
+  empty after reload while the controller check confirmed control. Updated PRD
+  0003 to record implementation/local verification and pending production and
+  installed-app device checks. Admin only; customer source remains unchanged.
+- Intended admin/customer production hosts are respectively
+  https://bukbuk-admin.astra-cloud-solutions.workers.dev and
+  https://bukbuk-customer.astra-cloud-solutions.workers.dev. Both returned 404
+  during planning; app identity and isolation on these hosts remain rollout
+  checks. Installed-window/device verification remains manual. No deployment
+  or live booking/payment writes.
+
+## Public web push registration — 0004 (13 Nov 2026)
+
+- Revised 0004 to public POST /web-push only, superseding the original admin
+  ownership/key-lookup/removal proposal. No business/principal columns, frontend,
+  authentication or delivery. Ownership, business authorization and scoped removal
+  remain requirements before expanding staff notifications.
+- Migration 0018 stores unique exact endpoints, encryption keys, SHA-256 VAPID
+  public-key identifiers and UTC timestamps. Upsert preserves ID/creation time;
+  separate endpoints support multiple devices. Strict bounded input validates
+  HTTPS URLs and P-256/base64url subscription keys without echoing secret values.
+- Manually supply stable per-environment VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY and
+  VAPID_SUBJECT. Existing ignored local settings are preserved; missing settings
+  receive REPLACE_ME placeholders only. No credentials were generated for setup.
+  Client public key must manually match backend; subscriptions cannot prove that
+  match. Rotation requires re-subscription. Configuration validates on registration
+  only, including signing/verifying to check the pair; errors are sanitized before
+  central logging, including database failures that could contain subscriptions.
+- Updated README, local Postman request and ticket. API type checks and all 24
+  test files pass, including new SQLite persistence/validation/configuration and
+  secret-safe failure tests. Local Wrangler D1 migration 0018 applied successfully.
+  pnpm store-lock restriction required installed compiler/Node tsx loader; local
+  Wrangler runtime required sandbox escalation for its listening socket.
+  No remote migration, deployment or live push-provider requests.
+- Final focused registration tests and type checks pass after review; whitespace
+  checks pass. The installed Postman CLI reports `unknown command 'status'`;
+  the local collection was parsed/updated but not executed against a live API.
+
+- Renamed the public registration endpoint to POST /register-web-push at the
+  developer’s request; supersedes /web-push above. Updated route, tests, README,
+  Postman request and ticket.
+
+## Admin notification controls and worker handlers — 0005 (13 Nov 2026)
+
+- Implemented the agreed reduced scope: Notifications in shared admin navigation
+  and `/settings/notifications`, using public POST `/register-web-push`. No login,
+  ownership, D1 deletion, sender or automatic booking/payment notifications.
+  This supersedes 0005's original session bridge and backend removal proposal.
+- Manually configure `PUBLIC_VAPID_PUBLIC_KEY` to match the API public key and
+  existing `PUBLIC_API_URL`. Validate P-256 key/configuration and active worker
+  readiness before enabling. Readiness waits are bounded; old or waiting workers
+  show save-drafts/close-all-admin-windows/reopen guidance without forcing updates.
+- Page load never prompts or creates a subscription. Existing matching browser
+  subscriptions are re-registered; persistence requires success with an ID.
+  Retry reuses the subscription. Explicit key replacement leaves the old D1
+  record. Turn off unsubscribes and verifies absence, retaining browser permission,
+  D1 records and already displayed notifications; failures remain visible.
+- Worker retains network-only/browser-managed lifecycle and adds a version-1
+  readiness handshake, waitUntil/showNotification with fixed generic BUK BUK test
+  text, and safe click navigation/focus/open behavior. Payload contract is
+  `{ "version": 1, "type": "test", "url": "/calendar" }`; empty, malformed,
+  unsupported or over-2048-byte payloads use calendar. Only literal `/calendar`,
+  `/bookings` and `/payments` destinations are accepted, including on click.
+  No subscription values are logged or written to application storage.
+- Revised 0005 and documented configuration, browser/Home Screen recovery,
+  worker updates and browser-only unsubscribe in the admin README. Added 0006
+  prerequisites: authentication, explicit business authorization, ownership and
+  ownership-scoped removal before delivery controls.
+- Verification: five focused Node tests pass for payload/click validation,
+  persistence shape and response ID, key matching, readiness timeout/update and
+  actual worker handlers with existing/new/failed-window behavior. Admin
+  type checking has zero errors/warnings, Wrangler types are current, production
+  build and changed-file formatting/whitespace checks pass using installed tools.
+- Headless Chrome production-preview checks at 390px/1440px passed: no initial
+  prompt, Enable, failed persistence/Retry reusing one subscription, permission
+  dismissal/denial, explicit key replacement, unsubscribe failure/success and no
+  automatic subscription after revisiting off settings. Checked keyboard focus,
+  live status semantics, no horizontal overflow, old-worker recovery, missing
+  push capability and iPhone Home Screen guidance. Real active worker readiness
+  passed; synthetic PushEvents in the production worker displayed fixed generic
+  notifications with valid and malformed-payload destinations.
+- Real Android/iPhone/iPad/installed desktop permission, installation, system
+  announcements and end-to-end delivery remain manual. Synthetic/mocked push
+  checks do not establish provider or real-device delivery. No deployment,
+  remote migration, live API writes or push-provider sends. Customer source is
+  unchanged and contains no permission/subscription requests.
+
+- Removed the VAPID_SUBJECT requirement from registration at the developer’s
+  request, superseding the earlier contact-setting requirement. Removed its
+  local placeholder and Env field. Registration still validates the VAPID key
+  pair; SQLite regression tests now run without a contact subject. Contact and
+  any provider-specific delivery requirements belong to 0006. No sender or
+  deployment added.
+- Verification for contact removal: API TypeScript check, three focused web-push
+  tests, all 24 API test files and whitespace checks pass. Installed Postman CLI
+  still does not support `status`; no live API or push delivery was tested.
+
+- Reverified 0005 and updated its PRD with completed scope and pending checks.
+  Existing local VAPID keys form a valid P-256 pair and the admin public key
+  matches the API; no values exposed or replaced. Admin API URL is localhost:8787;
+  production preview still needs a distinct PUBLIC_CUSTOMER_URL supplied.
+  Five notification tests, direct Svelte check (zero errors/warnings) and direct
+  Vite production build pass. Standard build currently fails stale Wrangler
+  generated types; pnpm check also encountered its read-only engine-store lock.
+  Earlier browser evidence is distinguished from checks rerun today. Current
+  preview/API/D1 integration, installed devices and provider delivery remain
+  unverified in this pass. No deployment or live writes.
+
+## Public demo push delivery — 0006 (14 Nov 2026)
+
+- Implemented the approved public demo scope, superseding 0006's authentication,
+  ownership and per-owner throttle prerequisites. Registration stays public;
+  no owners assigned to legacy rows, account work or automatic booking/payment sends.
+- Added public POST /v1/web-push-subscriptions/:id/test accepting exactly {}.
+  D1 supplies all destinations/keys; no caller content or destination accepted.
+  Pinned @block65/webcrypto-web-push 2.0.0 supplies RFC 8291 aes128gcm and modern
+  VAPID. Payload remains exactly version 1/test/calendar, bounded to 2048 bytes,
+  with TTL 60, eight-second timeout and redirect rejection.
+- Registration and sending allow only HTTPS/default-port FCM and Mozilla exact
+  hosts and hosts beneath .push.apple.com, without credentials/fragments.
+  Unsupported legacy rows remain stored but unsendable. Sending requires valid
+  VAPID_SUBJECT plus matching keys; registration still needs no subject.
+  WEB_PUSH_SEND_ENABLED defaults false; no local secrets replaced or exposed.
+- Migration 0019 adds nullable last_test_attempt_at. Conditional UPDATE RETURNING
+  atomically reserves one test attempt per subscription per 60 seconds. Local D1
+  migration succeeded; remote migration/deployment remain pending. Provider 404/410
+  deletes expired records; other failures retain them. Sanitized 202/404/409/410/
+  429/502/503/504 outcomes, Retry-After on throttle, and no automatic retry.
+- Admin retains successful registration ID in page memory, recovers it on reload
+  by re-registering without prompting, and enables Send only after persistence.
+  Actions disable while busy; cooldown, recoverable errors and explicit expired/
+  old-key re-subscription are visible. Browser-only Turn off and existing worker
+  readiness/display/calendar-click behavior remain unchanged.
+- API regressions passed including SQLite atomic cooldown and independent IDs,
+  strict input/allowlist, payload decryption, VAPID signature/audience, redirects,
+  timeout, expiry cleanup and failure retention. Notification tests passed;
+  API type check passed. Admin check reports zero errors/warnings and production
+  build passed; regenerated stale Wrangler admin types. Actual installed package
+  passed a local workerd smoke with controlled transport and ephemeral fixture
+  keys. No real provider contacted. Reusable isolated smoke fixture is included.
+- Headless production-preview checks at 390px/1440px passed for no initial prompt,
+  Enable, reload registration recovery without another prompt, accepted wording,
+  busy-state Send disabling, temporary failure, 429 cooldown and explicit expired
+  subscription replacement. No horizontal overflow; desktop screenshot inspected.
+  Used mocked browser subscriptions/worker readiness and API responses. Preview
+  required explicit distinct PUBLIC_CUSTOMER_URL=http://localhost:4173.
+- Updated 0006, API/admin READMEs and local Postman collection with request ID
+  chaining, configuration, migration order, key rotation and rollback. Disable
+  sending first and preserve worker URL; browser unsubscribe leaves D1 rows.
+  Android, iPhone/iPad Home Screen and installed-desktop provider delivery, device
+  display and calendar click remain pending. No production deployment/live writes.
+
+## Admin authentication and user management — 0007 (19 Nov 2026)
+
+- Added migration 0020 with immutable user IDs, unique normalized usernames,
+  salted scrypt hashes and role and ban constraints. The seed preserves an
+  existing `sam` account. Change the initial password before public exposure.
+- Staff login uses independent `JWT_SECRET` and `JWT_REFRESH_SECRET` settings
+  for access and refresh JWTs. Access expires within 15 minutes. Refresh keeps
+  the original role and seven-day deadline. Bans block new login, while issued
+  tokens survive bans, password changes and local logout through their deadlines.
+- Both staff roles can read users and create managers. Managers can edit their
+  own credentials and other managers. Manager ban or unban requests can target
+  other managers. Developer provisioning is through D1.
+- Applied access middleware to staff methods on the mixed booking, payment,
+  customer and configuration routes. Customer booking and payment operations
+  and the public demo push API retain public access. Confirmed CORS preflight
+  for QUERY, Authorization and Content-Type.
+- Added the admin browser guard, login, user pages and logout. The shared API
+  client stores the token pair in one localStorage write, coordinates refresh
+  in the current tab, and retries the original request once after a 401.
+- Updated both READMEs and validated the 39 requests in the existing Postman
+  collection for JSON and script syntax. API TypeScript and all 27 API test
+  files passed. Local Wrangler applied the full migration chain with disposable
+  ST3 fixture data. The seeded scrypt login took 672 ms round trip in one
+  workerd check. D1 verified role and ban enforcement, conflicts, updates,
+  refresh and public booking and payment reads. This was a local runtime check.
+- Chrome against local Wrangler/D1 passed direct signed-out navigation, blocked
+  storage messaging, seeded sign-in, reload, form validation, duplicate username,
+  user creation and editing controls, banning another manager, and mobile logout.
+  With controlled browser responses, Chrome verified concurrent and late 401s,
+  one retry after saving the pair, refresh failure and second-401 redirects,
+  on-page 403 handling, and stale refresh responses after logout or a new login.
+- Admin Wrangler types, Svelte check with zero errors and warnings, production
+  build, notification tests and whitespace checks passed. Browser verification
+  used the Vite dev server. Production deployment and remote migrations remain
+  outside this implementation.
+- On `/login`, username and password inputs use a white border at rest and a
+  primary-yellow border on focus. Both labels use the shared muted text color.
+
+- Scoped the admin `GET /v1/auth/me` request to `/users` and its subroutes,
+  where the UI uses the principal. The shared browser guard checks for a stored
+  token pair. Protected API requests verify the access token and handle refresh.
+
+- Shared the admin text-entry styling across sign-in and user management.
+  Labels use the muted theme color, entered values use white, and the white
+  field border turns primary yellow on focus without an extra outline.
+
+## Authenticated admin web push
+
+- Registration, test sends and device removal require an admin access token.
+  The verified subject supplies `user_id`. The server-generated subscription UUID
+  identifies the D1 record for test sends. The browser's push endpoint identifies
+  its current subscription for removal, including after a page reload.
+- Migration 0021 adds ownership. Existing unowned demo rows are ineligible for
+  authenticated test sends. Endpoints are unique and re-enrollment on the same
+  account preserves the UUID. An endpoint associated with another account or
+  with a legacy demo row requires explicit browser subscription replacement.
+- Turn off deletes only the signed-in user's subscription for this endpoint,
+  then unsubscribes the browser. The ban update deletes all subscriptions for
+  the affected user in the same D1 statement via a trigger. Registration checks
+  active account status inside its write so an issued token cannot re-enroll
+  during a ban. Unbanning allows fresh registration.
+- API types and 107 tests passed. The focused push tests cover owner isolation,
+  DELETE preflight, targeted removal and ban cleanup. An isolated local D1
+  database accepted migrations 0018–0021. Admin notification tests, Svelte
+  check and production build passed. Real-device delivery remains pending.
+
+## Admin booking links and service worker origin
+
+- Payment rows now open the existing admin booking details on the same origin.
+  Admin no longer reads or validates `PUBLIC_CUSTOMER_URL`.
+- The admin layout registers its worker in production secure contexts with
+  browser support. The registration is scoped to the admin origin. The customer
+  app does not register a worker.
+
+## Admin web push sender configuration
+
+- Removed the test-send flag and the VAPID contact setting. Staff can send
+  tests with a registered device and matching VAPID keys. The API signs an
+  RFC 8292 token with audience and expiry, and the existing library encrypts
+  the notification payload.
+
+- Added a secret-protected developer broadcast at POST
+  /v1/web-push-subscriptions/test. It sends to active developers' registered
+  devices through SendTestWebPush.exec and returns aggregate delivery outcomes.
+  Renamed the existing local API_SECRET setting to DEVELOPER_SECRET.
+
+- Moved the registration route to POST /v1/register-web-push. Updated the
+  admin client, local Postman request, and API contract examples.
+
+- Consolidated registration and owner-scoped hard deletion under
+  /v1/web-push-subscriptions. DELETE takes the row ID returned by registration.
+  POST /v1/web-push-subscriptions/test uses the developer secret and broadcasts
+  to developers' registered devices. Removed the per-device test route and
+  admin send button.
+
+- The developer broadcast reads the API's DEVELOPER_SECRET value from the
+  developer_secret request header.
+
+- Removed the developer web push test cooldown in all environments. Repeated
+  broadcasts attempt delivery each time and return matched, accepted, and failed
+  counts. Migration 0022 removes the unused last-attempt timestamp.
+
+- Failed developer web push sends now log the subscription ID, safe failure
+  reason, and provider HTTP status when available.
+
+- Web push transport failures now log the provider hostname and redacted
+  exception details before the broadcast records the failed send.
+
+- Fixed the default web push transport to call fetch with the global receiver
+  required by Workers. The previous call failed before reaching the provider.
+
+- Developer test broadcasts now use SendWebPushNotification.exec with a flat
+  subscription_id, title, body and url input. The admin worker renders the
+  supplied text and still accepts the original test format.
+
+- SendBookingConfirmedNotification sends to active developer and manager
+  devices on auto-confirmed creation and payment confirmation. The MVP rule
+  also applies to admin-created bookings. Replayed confirmations of an
+  already-confirmed booking skip the push. Clicking opens admin booking details.
+
+- The developer confirmed local booking push delivery through the admin preview
+  and requested closure of PRDs 0001–0007.
+
+- Admin booking details display the original creation timestamp in Malaysia time
+  under “Created at” and load the customer's name and phone through the staff customer endpoint.
+  Booking and reservation details remain visible if the customer lookup fails.
+
+- Customer and admin booking details pair Date with Room and Time with Duration
+  below 640px. Admin also pairs Status with Created at and Customer name with
+  Customer phone. Both apps display the stored reservation start and end in
+  Malaysia time.
+
+- Migration 0023 sets the ST3 Wonderland Racing category acronym to `Racing`.
+  Booking logic compares the acronym case-insensitively so both spellings
+  support quantity selection, machine assignment, and reservation grouping.
+  Booking category labels still read from the separate name column.

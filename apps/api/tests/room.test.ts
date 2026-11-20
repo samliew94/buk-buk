@@ -1,7 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { fixture } from './sqlite'
-import { createApp } from '../src/index'
+import { createStaffTestApp } from './staff'
 import { QueryRoom } from '../src/room/QueryRoom'
 import { Guid } from '../src/value-objects/Guid'
 
@@ -9,7 +9,7 @@ test('category and physical room management persist exact snake_case contracts a
   const { db, d1 } = fixture()
   t.after(() => db.close())
   db.exec("INSERT INTO business(id,name) VALUES ('a','A'),('b','B')")
-  const app = createApp()
+  const app = createStaffTestApp()
   const send = (path: string, method: string, body: unknown) =>
     app.request(
       '/v1/' + path,
@@ -113,7 +113,7 @@ test('categories and nested room IDs have stable sort order, name and ID orderin
   db.exec(`INSERT INTO business(id,name) VALUES ('a','A'),('b','B');
  INSERT INTO room_category VALUES ('z','a','Family',NULL,0),('a','a','Family',NULL,0),('first','a','Zebra',NULL,-1),('foreign','b','Foreign',NULL,0);
  INSERT INTO room VALUES ('z','a','Same',0),('a','a','Same',0),('first','a','Zebra',-1),('name-first','a','Alpha',0);`)
-  const response = await createApp().request(
+  const response = await createStaffTestApp().request(
     '/v1/room-categories',
     { method: 'QUERY', body: JSON.stringify({ business_id: 'a' }) },
     { DB: d1 },
@@ -128,7 +128,7 @@ test('categories and nested room IDs have stable sort order, name and ID orderin
     [[], ['first', 'name-first', 'a', 'z'], []],
   )
   for (const path of ['/v1/room-categories', '/v1/room-category-rental-fees']) {
-    const preflight = await createApp().request(
+    const preflight = await createStaffTestApp().request(
       path,
       {
         method: 'OPTIONS',

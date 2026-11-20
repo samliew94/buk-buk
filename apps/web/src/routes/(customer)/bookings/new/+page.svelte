@@ -48,7 +48,7 @@
 				...slot,
 				durations: slot.durations.filter(
 					(minutes) =>
-						(slot.capacity[minutes] ?? 0) >= (category?.acronym === 'RACING' ? quantity : 1)
+						(slot.capacity[minutes] ?? 0) >= (category?.acronym?.toUpperCase() === 'RACING' ? quantity : 1)
 				)
 			}))
 			.filter((slot) => slot.durations.includes(60))
@@ -100,7 +100,7 @@
 					room: { id: active.category.id, name: active.category.name },
 					time: active.time,
 					duration,
-					...(active.category.acronym === 'RACING' ? { quantity } : {})
+					...(active.category.acronym?.toUpperCase() === 'RACING' ? { quantity } : {})
 				})
 			);
 		} catch {
@@ -192,7 +192,7 @@
 						{/each}
 					</div>
 				</div>
-				{#if category.acronym === 'RACING'}
+				{#if category.acronym?.toUpperCase() === 'RACING'}
 					<div class="p-5 sm:p-7">
 						<p class="text-[14px]! font-semibold text-booking-white">Select Quantity</p>
 						<div class="mt-4 flex items-center gap-4" role="group" aria-label="Booking quantity">

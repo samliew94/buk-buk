@@ -1,7 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { fixture } from './sqlite'
-import { createApp } from '../src/index'
+import { createStaffTestApp } from './staff'
 
 function setup() {
   const { db, d1 } = fixture()
@@ -15,7 +15,7 @@ function setup() {
     INSERT INTO room_reservation VALUES ('old','booking','r1','2026-11-14T00:00:00.000Z','2026-11-14T01:00:00.000Z','ca');
     INSERT INTO payment(id,booking_id,price,status,created_at) VALUES ('payment','booking',10,'pending','2026-11-01T00:00:00.000Z');
   `)
-  const app = createApp()
+  const app = createStaffTestApp()
   const put = (body: unknown, id = 'booking') => app.request('/v1/bookings/' + id, { method: 'PUT', body: JSON.stringify(body) }, { DB: d1 })
   const get = () => app.request('/v1/bookings/booking', {}, { DB: d1 })
   return { db, d1, app, put, get }

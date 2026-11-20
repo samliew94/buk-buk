@@ -1,3 +1,4 @@
+import { requireAccessToken } from '../middleware/auth.middleware'
 import { Hono } from 'hono'
 import { DateTime } from 'luxon'
 import { BadRequestError } from '../errors'
@@ -27,7 +28,7 @@ function readId(value: unknown, field: string) {
 
 export const payments = new Hono<AppEnv>()
 
-payments.query('/', async (c) => {
+payments.query('/', requireAccessToken, async (c) => {
   const body = await readBody(c.req.raw)
   if (Object.keys(body).some(key => !['business_id', 'date'].includes(key))) {
     throw new BadRequestError('unsupported filter | resource: payments')

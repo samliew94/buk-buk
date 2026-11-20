@@ -7,7 +7,7 @@ export function fixture(beforeCategoryMigration = false) {
   db.exec('PRAGMA foreign_keys = ON')
   const dir = new URL('../migrations/', import.meta.url)
   for (const name of readdirSync(dir)
-    .filter((n) => n.endsWith('.sql') && (n < '0014' || n.startsWith('0017')))
+    .filter((n) => n.endsWith('.sql') && (n < '0014' || n >= '0017'))
     .sort()) {
     if (beforeCategoryMigration && name >= '0013') continue
     db.exec(readFileSync(new URL(name, dir), 'utf8'))

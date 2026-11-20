@@ -53,11 +53,8 @@ pnpm types                                # API and frontend checks
 
 Development ports are strict; previews use 4173 (web) and 4174 (admin).
 Both apps consume `PUBLIC_API_URL` (development default http://localhost:8787)
-and `PUBLIC_BOOKING_BUSINESS_ID` (default ST3 Wonderland). Admin additionally
-requires `PUBLIC_CUSTOMER_URL` in production: an HTTP(S) origin without a path,
-for example https://booking.example.com. Development defaults to
-http://localhost:5173. Payment-row booking links navigate to that customer origin
-in the same tab. New Reservation stays on the admin origin. Admin selection uses
+and `PUBLIC_BOOKING_BUSINESS_ID` (default ST3 Wonderland). Payment-row booking links and New Reservation stay
+on the admin origin. Admin selection uses
 `admin.booking-draft`; the contact form starts empty with MY (+60) and keeps
 contact values only in page state. Submit (including Enter) currently does nothing:
 no customer/booking writes, payments or navigation.

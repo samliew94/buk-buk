@@ -1,0 +1,5 @@
+{
+  "name": "booking-push-smoke",
+  "main": "web-push-smoke.worker.ts",
+  "compatibility_date": "2026-08-22"
+}

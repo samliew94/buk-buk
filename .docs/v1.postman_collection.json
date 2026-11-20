@@ -2,7 +2,7 @@
   "info": {
     "name": "api",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
-    "description": "Booking API local collection. Set url and business_id. QueryRoomCategories -> select room_category_id -> CreateCustomer -> QueryReservations -> CreateBooking -> QueryBooking. Staff fixture: CreateBusiness -> CreateRoomCategory -> CreateRoom. Optional quantity must be an integer from 1\u20134 (omission defaults to 1); non-RACING categories accept only 1 or omission. The server resolves category ownership/acronym. RACING assigns distinct machines continuously free for the full interval, ordered by sort order/name/ID, even for quantity 1. Confirmed and unexpired pending bookings block overlaps; adjacent intervals, cancelled bookings and expired holds do not. Insufficient capacity returns 409 before writes. One booking has N reservation rows and one unchanged upfront payment flow. Other categories retain the temporary assignment bypass. The response still temporarily returns payment_url: null. Concurrency protection and atomicity remain deferred. Date reservation queries include overlapping intervals; range queries retain contained intervals. All reservation queries require business_id. Payment flow and alternatives remain as documented on individual requests. Concurrency, atomicity, finalized payment enforcement and late-payment policies are deferred. Do not run alternative payment outcomes on the same booking. No credentials are exported."
+    "description": "Booking API local collection. Set url and business_id. QueryRoomCategories -> select room_category_id -> CreateCustomer -> QueryReservations -> CreateBooking -> QueryBooking. Staff fixture: Login -> CreateBusiness -> CreateRoomCategory -> CreateRoom. Optional quantity must be an integer from 1\u20134 (omission defaults to 1); non-RACING categories accept only 1 or omission. The server resolves category ownership/acronym. RACING assigns distinct machines continuously free for the full interval, ordered by sort order/name/ID, even for quantity 1. Confirmed and unexpired pending bookings block overlaps; adjacent intervals, cancelled bookings and expired holds do not. Insufficient capacity returns 409 before writes. One booking has N reservation rows and one unchanged upfront payment flow. Other categories retain the temporary assignment bypass. The response still temporarily returns payment_url: null. Concurrency protection and atomicity remain deferred. Date reservation queries include overlapping intervals; range queries retain contained intervals. All reservation queries require business_id. Payment flow and alternatives remain as documented on individual requests. Concurrency, atomicity, finalized payment enforcement and late-payment policies are deferred. Do not run alternative payment outcomes on the same booking. No credentials are exported."
   },
   "auth": {
     "type": "noauth"
@@ -69,12 +69,12 @@
       "type": "string"
     },
     {
-      "key": "adminPassword",
+      "key": "staff_password",
       "value": "",
       "type": "string"
     },
     {
-      "key": "token",
+      "key": "access_token",
       "value": "",
       "type": "string"
     },
@@ -82,9 +82,351 @@
       "key": "room_category_id",
       "value": "",
       "type": "string"
+    },
+    {
+      "key": "staff_username",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "refresh_token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "new_manager_username",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "new_manager_password",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "user_id",
+      "value": "",
+      "type": "string"
     }
   ],
   "item": [
+    {
+      "name": "Authentication",
+      "item": [
+        {
+          "name": "Login",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{url}}/v1/auth/login",
+            "description": "Set staff_username and staff_password locally. Saves both tokens as run variables. For individual requests, set the token variables locally.",
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"{{staff_username}}\",\n  \"password\": \"{{staff_password}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "if (pm.response.code === 200) {",
+                  "  const pair = pm.response.json();",
+                  "  pm.variables.set(\"access_token\", pair.access_token);",
+                  "  pm.variables.set(\"refresh_token\", pair.refresh_token);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "RefreshToken",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{url}}/v1/auth/refresh",
+            "description": "Replace the pair while keeping the original session deadline.",
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refresh_token\": \"{{refresh_token}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
+                  "if (pm.response.code === 200) {",
+                  "  const pair = pm.response.json();",
+                  "  pm.variables.set(\"access_token\", pair.access_token);",
+                  "  pm.variables.set(\"refresh_token\", pair.refresh_token);",
+                  "}"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "QueryCurrentIdentity",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{url}}/v1/auth/me",
+            "description": "Requires an access token for a developer or manager. Returns the account ID and role.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "QueryAdminIdentity",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{url}}/v1/auth/admin",
+            "description": "Requires an access token for a developer or manager. Returns the account ID and role.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Users",
+      "item": [
+        {
+          "name": "QueryUsers",
+          "request": {
+            "method": "QUERY",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{url}}/v1/users",
+            "description": "List staff accounts ordered by username and ID.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "CreateUser",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{url}}/v1/users",
+            "description": "Create an unbanned manager and save their ID for the lookup and update examples.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"{{new_manager_username}}\",\n  \"password\": \"{{new_manager_password}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 201\", () => pm.response.to.have.status(201));",
+                  "if (pm.response.code === 201) pm.variables.set(\"user_id\", pm.response.json().id);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "QueryUser",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{url}}/v1/users/{{user_id}}",
+            "description": "Return the user or null when missing.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "UpdateUser",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{url}}/v1/users/{{user_id}}",
+            "description": "Ban another manager. Send false to unban. A partial update may also include username or a replacement password.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"is_banned\": true\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
     {
       "name": "Health",
       "item": [
@@ -129,7 +471,14 @@
             "url": "{{url}}/v1/businesses",
             "description": "Creates a business and saves business_id. A new business has no upfront payment policy, so its bookings confirm without payment.",
             "auth": {
-              "type": "noauth"
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
             },
             "body": {
               "mode": "raw",
@@ -193,7 +542,14 @@
             "url": "{{url}}/v1/businesses/{{business_id}}",
             "description": "Requires a nonblank name. Missing business returns 404.",
             "auth": {
-              "type": "noauth"
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
             },
             "body": {
               "mode": "raw",
@@ -271,7 +627,14 @@
             "url": "{{url}}/v1/customers/{{customer_id}}",
             "description": "Returns the customer including created_at, or null with HTTP 200 when missing.",
             "auth": {
-              "type": "noauth"
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
             }
           },
           "event": [
@@ -299,7 +662,14 @@
             "url": "{{url}}/v1/customers/{{customer_id}}",
             "description": "Replaces name and phone. Missing customer returns 404.",
             "auth": {
-              "type": "noauth"
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
             },
             "body": {
               "mode": "raw",
@@ -341,7 +711,14 @@
             "url": "{{url}}/v1/room-categories",
             "description": "Categories belong to business_id. Query returns ordered categories with ordered room_ids, including empty categories. Writes require business_id, name, sort_order; acronym is optional/null on creation and nonblank on update.",
             "auth": {
-              "type": "noauth"
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
             },
             "body": {
               "mode": "raw",
@@ -419,7 +796,14 @@
             "url": "{{url}}/v1/room-categories/{{room_category_id}}",
             "description": "Categories belong to business_id. Query returns ordered categories with ordered room_ids, including empty categories. Writes require business_id, name, sort_order; acronym is optional/null on creation and nonblank on update.",
             "auth": {
-              "type": "noauth"
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
             },
             "body": {
               "mode": "raw",
@@ -461,7 +845,14 @@
             "url": "{{url}}/v1/rooms",
             "description": "Staff physical rooms. Query is scoped by business_id through category ownership. Writes accept room_category_id, name, sort_order. Create returns 201 with id and those fields; update returns 204.",
             "auth": {
-              "type": "noauth"
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
             },
             "body": {
               "mode": "raw",
@@ -539,7 +930,14 @@
             "url": "{{url}}/v1/rooms/{{room_id}}",
             "description": "Staff physical rooms. Query is scoped by business_id through category ownership. Writes accept room_category_id, name, sort_order. Create returns 201 with id and those fields; update returns 204.",
             "auth": {
-              "type": "noauth"
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
             },
             "body": {
               "mode": "raw",
@@ -581,7 +979,14 @@
             "url": "{{url}}/v1/room-category-rental-fees",
             "description": "Category fee: room_category_id, nonnegative safe integer duration, finite nonnegative price. Query returns the first fee by ID or null. No rental quote calculation.",
             "auth": {
-              "type": "noauth"
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
             },
             "body": {
               "mode": "raw",
@@ -659,7 +1064,14 @@
             "url": "{{url}}/v1/room-category-rental-fees/{{rentalFeeId}}",
             "description": "Category fee: room_category_id, nonnegative safe integer duration, finite nonnegative price. Query returns the first fee by ID or null. No rental quote calculation.",
             "auth": {
-              "type": "noauth"
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
             },
             "body": {
               "mode": "raw",
@@ -858,7 +1270,17 @@
               }
             },
             "url": "{{url}}/v1/bookings",
-            "description": "Malaysia calendar day overlaps. Returns rooms (including unbooked rooms) and bookings with customer_name, customer_phone and matching full reservation intervals. Pending bookings are included only while expire_at is later than the current UTC time. Expired pending holds are excluded; other statuses are unchanged. Rejects range filters."
+            "description": "Malaysia calendar day overlaps. Returns rooms (including unbooked rooms) and bookings with customer_name, customer_phone and matching full reservation intervals. Pending bookings are included only while expire_at is later than the current UTC time. Expired pending holds are excluded; other statuses are unchanged. Rejects range filters.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
+            }
           },
           "event": [
             {
@@ -1073,109 +1495,6 @@
       ]
     },
     {
-      "name": "Authentication",
-      "item": [
-        {
-          "name": "Login",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "url": "{{url}}/v1/auth/login",
-            "description": "Set adminPassword locally in Postman before sending. No credentials are included in this export. Saves the returned token as a local run variable (pm.variables), usable by subsequent requests in the same runner execution. For individual sends, copy the token into a local token variable. Invalid credentials return 401.",
-            "auth": {
-              "type": "noauth"
-            },
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"password\": \"{{adminPassword}}\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            }
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));",
-                  "if (pm.response.code === 200) pm.variables.set(\"token\", pm.response.json().token);"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "QueryCurrentIdentity",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": "{{url}}/v1/auth/me",
-            "description": "Requires bearer token from admin login. Missing or invalid credentials return 401.",
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{token}}",
-                  "type": "string"
-                }
-              ]
-            }
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));"
-                ]
-              }
-            }
-          ]
-        },
-        {
-          "name": "QueryAdminIdentity",
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": "{{url}}/v1/auth/admin",
-            "description": "Requires an admin bearer token. A non-admin token returns 403.",
-            "auth": {
-              "type": "bearer",
-              "bearer": [
-                {
-                  "key": "token",
-                  "value": "{{token}}",
-                  "type": "string"
-                }
-              ]
-            }
-          },
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test(\"HTTP 200\", () => pm.response.to.have.status(200));"
-                ]
-              }
-            }
-          ]
-        }
-      ]
-    },
-    {
       "name": "Payments",
       "item": [
         {
@@ -1224,7 +1543,17 @@
           }
         },
         "url": "{{url}}/v1/payments",
-        "description": "All stored payment rows for the Malaysia creation day, newest first by created_at then id. Business scope follows assigned rooms and current categories; no duplicates."
+        "description": "All stored payment rows for the Malaysia creation day, newest first by created_at then id. Business scope follows assigned rooms and current categories; no duplicates.",
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{access_token}}",
+              "type": "string"
+            }
+          ]
+        }
       },
       "event": [
         {
@@ -1254,7 +1583,7 @@
           }
         ],
         "url": "{{url}}/v1/bookings/{{booking_id}}",
-        "description": "Replace the complete reservations list for any booking status. Uses stored booking business ownership and current room categories. Preserves booking fields, expiry and payment history. New reservation IDs are generated. Public MVP access; other bookings may conflict. Same-room overlaps within this list return 400; missing/foreign rooms or booking return 404. Replacement is atomic. Offset-free starts use Malaysia time; output is UTC. Returns 200 in the QueryBooking shape. Set room_id to an existing physical room in this booking business.",
+        "description": "Replace the complete reservations list for any booking status. Uses stored booking business ownership and current room categories. Preserves booking fields, expiry and payment history. New reservation IDs are generated. Other bookings may conflict. Same-room overlaps within this list return 400; missing/foreign rooms or booking return 404. Replacement is atomic. Offset-free starts use Malaysia time; output is UTC. Returns 200 in the QueryBooking shape. Set room_id to an existing physical room in this booking business.",
         "body": {
           "mode": "raw",
           "raw": "{\n  \"reservations\": [\n    {\n      \"room_id\": \"{{room_id}}\",\n      \"from\": \"2026-11-14T10:00:00+08:00\",\n      \"duration\": 90\n    }\n  ]\n}",
@@ -1263,6 +1592,16 @@
               "language": "json"
             }
           }
+        },
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{access_token}}",
+              "type": "string"
+            }
+          ]
         }
       },
       "event": [
@@ -1273,6 +1612,118 @@
             "exec": [
               "pm.test(\"Updated booking\", () => { pm.response.to.have.status(200); });",
               "pm.test(\"Booking and reservations\", () => { const b = pm.response.json(); pm.expect(b.id).to.eql(pm.collectionVariables.get(\"booking_id\")); pm.expect(b.reservations).to.be.an(\"array\").that.is.not.empty; b.reservations.forEach(r => { pm.expect(r).to.have.all.keys(\"id\", \"room_id\", \"room_name\", \"room_category_id\", \"room_category_name\", \"room_category_acronym\", \"from\", \"to\", \"duration\"); }); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "RegisterWebPush",
+      "request": {
+        "method": "POST",
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{access_token}}",
+              "type": "string"
+            }
+          ]
+        },
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{url}}/v1/web-push-subscriptions",
+        "description": "Run Login first and use subscription values provided by the browser. The staff access token supplies the owner. Repeating an endpoint as its owner returns the same ID. Inactive accounts return 403. Endpoints belonging to another account or to a legacy row return 409 and require browser re-subscription. Configure matching VAPID keys.",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"endpoint\": \"{{push_endpoint}}\",\n  \"keys\": {\n    \"p256dh\": \"{{push_p256dh}}\",\n    \"auth\": \"{{push_auth}}\"\n  }\n}"
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Registration returns only ID\", function () {",
+              "  pm.response.to.have.status(200);",
+              "  const data = pm.response.json();",
+              "  pm.expect(Object.keys(data)).to.eql([\"id\"]);",
+              "  pm.expect(data.id).to.be.a(\"string\").and.not.empty;",
+              "  pm.collectionVariables.set(\"web_push_subscription_id\", data.id);",
+              "});"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "SendTestWebPush",
+      "request": {
+        "method": "POST",
+        "url": "{{url}}/v1/web-push-subscriptions/test",
+        "description": "Provide developer_secret from the Postman environment. Sends to registered devices owned by active developers and returns aggregate counts.",
+        "auth": {
+          "type": "noauth"
+        },
+        "header": [
+          {
+            "key": "developer_secret",
+            "value": "{{developer_secret}}"
+          }
+        ]
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Broadcast returns aggregate counts\", function () { pm.response.to.have.status(200); pm.expect(pm.response.json()).to.have.all.keys(\"matched\", \"accepted\", \"failed\"); });"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "DeregisterWebPush",
+      "request": {
+        "method": "DELETE",
+        "auth": {
+          "type": "bearer",
+          "bearer": [
+            {
+              "key": "token",
+              "value": "{{access_token}}",
+              "type": "string"
+            }
+          ]
+        },
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": "{{url}}/v1/web-push-subscriptions",
+        "description": "Uses the row ID from RegisterWebPush. Hard-deletes only the matching row belonging to the authenticated staff account. Returns 204 for deleted, missing and foreign registrations. Unsubscribe in the browser after removing the server registration.",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"id\": \"{{web_push_subscription_id}}\"\n}"
+        }
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test(\"Deregistration returns no content\", function () { pm.response.to.have.status(204); });"
             ]
           }
         }

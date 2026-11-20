@@ -1,7 +1,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { fixture } from './sqlite'
-import { createApp } from '../src/index'
+import { createStaffTestApp } from './staff'
 
 test('temporary assignment bypass preserves deterministic ordering, business scope and requested category history', async (t) => {
   const { db, d1 } = fixture()
@@ -10,7 +10,7 @@ test('temporary assignment bypass preserves deterministic ordering, business sco
  INSERT INTO room_category VALUES ('family','a','Family','FR',0),('empty','a','Empty',NULL,1),('foreign','b','Other',NULL,0);
  INSERT INTO room VALUES ('r3','family','FR3',0),('r2','family','FR2',0),('r1','family','FR1',0);
  INSERT INTO customer(id,name,phone) VALUES ('c','Guest','0123');`)
-  const app = createApp()
+  const app = createStaffTestApp()
   const create = (
     category = 'family',
     from = '2026-11-11T07:00:00.000Z',

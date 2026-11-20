@@ -4,12 +4,12 @@ import { readFileSync } from 'node:fs'
 import { URL } from 'node:url'
 import { DatabaseSync } from 'node:sqlite'
 import { fixture as sqlite } from './sqlite'
-import { createApp } from '../src/index'
+import { createStaffTestApp } from './staff'
 
 function fixture() {
   const {db, d1} = sqlite()
   db.exec("INSERT INTO business(id,name) VALUES ('a','A'),('b','B'); INSERT INTO room_category VALUES ('room-a','a','A',NULL,0),('room-b','b','B',NULL,0)")
-  const app = createApp()
+  const app = createStaffTestApp()
   return {
     db,
     request: (path: string, init?: RequestInit) => app.request(path, init, { DB: d1 }),

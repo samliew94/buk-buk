@@ -1,3 +1,4 @@
+import { requireAccessToken } from '../middleware/auth.middleware'
 import { Hono } from 'hono'
 import type { AppEnv } from '../dependencies'
 import { BadRequestError } from '../errors'
@@ -66,7 +67,7 @@ roomCategoryRentalFees.query('/', async (c) => {
   return c.json(result)
 })
 
-roomCategoryRentalFees.post('/', async (c) => {
+roomCategoryRentalFees.post('/', requireAccessToken, async (c) => {
   const { room_category_id: roomCategoryId, duration, price } = await readInput(c.req.raw)
   const id = Guid.new()
   await c
@@ -83,7 +84,7 @@ roomCategoryRentalFees.post('/', async (c) => {
   )
 })
 
-roomCategoryRentalFees.put('/:id', async (c) => {
+roomCategoryRentalFees.put('/:id', requireAccessToken, async (c) => {
   const { room_category_id: roomCategoryId, duration, price } = await readInput(c.req.raw)
   const id = Guid.from(c.req.param('id'))
   await c

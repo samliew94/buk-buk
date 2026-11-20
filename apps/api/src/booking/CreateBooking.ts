@@ -10,6 +10,7 @@ import { QueryRoomCategory } from "../room-category/QueryRoomCategory";
 import { MyDateTime } from "../utils/MyDateTime";
 import { Guid } from "../value-objects/Guid";
 import { PositiveDuration } from "../value-objects/PositiveDuration";
+import type { SendBookingConfirmedNotification } from "./SendBookingConfirmedNotification";
 import { BookingStatus } from "./booking-status.enum";
 
 export class CreateBooking {
@@ -20,7 +21,8 @@ export class CreateBooking {
     private readonly _createPayment: CreatePayment,
     private readonly _initiatePaymentGateway: InitiatePaymentGateway,
     private readonly _queryAvailableRooms: QueryAvailableRooms,
-    private readonly _queryRoomCategory: QueryRoomCategory
+    private readonly _queryRoomCategory: QueryRoomCategory,
+    private readonly _sendBookingConfirmedNotification: Pick<SendBookingConfirmedNotification, 'exec'>,
   ) {}
 
   async exec(
@@ -36,14 +38,14 @@ export class CreateBooking {
 
       const roomCategory = await this._queryRoomCategory.query(roomCategoryId, businessId);
 
-      if (roomCategory.acronym === 'RACING' && (!Number.isInteger(quantity) || quantity < 1 || quantity > 4))
+      if (roomCategory.acronym?.toUpperCase() === 'RACING' && (!Number.isInteger(quantity) || quantity < 1 || quantity > 4))
         throw new BadRequestError('invalid quantity for room category | id: ' + roomCategoryId.value)
 
       const roomIds = await this._queryAvailableRooms.query(
         roomCategoryId,
         from,
         to,
-        roomCategory.acronym === 'RACING' ? quantity : 1);
+        roomCategory.acronym?.toUpperCase() === 'RACING' ? quantity : 1);
 
       const now = MyDateTime.now();
 
@@ -97,6 +99,8 @@ export class CreateBooking {
           upfrontPayment.total);
 
         paymentUrl = result.payment_url;
+      } else {
+        await this._sendBookingConfirmedNotification.exec(bookingId.value);
       }
 
       // initial booking flow ends here
