@@ -2,32 +2,46 @@
 
 from root, run `pnpm i`
 
-# API
+## Local API migrations
 
-## Migration
-
-### localhost
-from root, run `pnpm --filter api migrate --local`
-
-### production
-from root, run `pnpm --filter api migrate --remote -c wrangler.production.jsonc`
-
-## Deploy production API
-```bash
-cd apps/api && pnpm deploy -- -c wrangler.production.jsonc
+```sh
+pnpm --filter api exec wrangler d1 migrations apply DB --local
 ```
 
-## Update cors.json
-```bash
-pnpm exec wrangler r2 bucket cors set astra-cloud-solution
-s \
-    --file cors.json \
-    --config wrangler.production.jsonc
+## Production deployment
+
+Each app defines an `env.production` block in its `wrangler.jsonc`. The customer, admin and API
+Workers serve their respective custom domains under `astra-cloud-solutions.com`.
+
+Create the production D1 database named `bukbuk` and replace
+`REPLACE_WITH_BUKBUK_D1_DATABASE_ID` in the API production config with its ID.
+Review the pending migrations and verify the ST3 records and payment policy
+before opening bookings.
+
+```sh
+pnpm --filter api exec wrangler d1 migrations list DB --remote --env production
+pnpm --filter api exec wrangler d1 migrations apply DB --remote --env production
 ```
 
-# WEB
-```bash
-cd apps/web && pnpm wrangler types && pnpm build && pnpm wrangler deploy --secrets-file .env.production --name xunbao-web
+Use Wrangler secrets on the production Workers. Set `JWT_SECRET` and
+`JWT_REFRESH_SECRET` to independent values on the API Worker. For push, set
+`VAPID_PUBLIC_KEY` and `VAPID_PRIVATE_KEY` on the API and the matching
+`PUBLIC_VAPID_PUBLIC_KEY` on admin. The admin public key is exposed to browsers.
+Set `DEVELOPER_SECRET` on the API if using developer test broadcasts.
+
+```sh
+pnpm --filter api exec wrangler secret put JWT_SECRET --env production
+pnpm --filter api exec wrangler secret put JWT_REFRESH_SECRET --env production
+```
+
+Build the frontends before deploying. Rebuild after source changes.
+
+```sh
+pnpm --filter api exec wrangler deploy --minify --env production
+pnpm --filter web build
+pnpm --filter web exec wrangler deploy --env production
+pnpm --filter admin build
+pnpm --filter admin exec wrangler deploy --env production
 ```
 
 ## Frontend apps

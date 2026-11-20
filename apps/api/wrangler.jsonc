@@ -1,18 +1,35 @@
 {
-  "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "bukbuk-api",
-  "main": "src/index.ts",
-  "compatibility_date": "2026-08-22",
-  "compatibility_flags": ["nodejs_compat"],
-  "d1_databases": [
-    {
-      "binding": "DB",
-      "database_name": "booking",
-    },
-  ],
-  "kv_namespaces": [
-    {
-      "binding": "KV",
-    },
-  ],
+	"$schema": "node_modules/wrangler/config-schema.json",
+	"name": "bukbuk-api",
+	"main": "src/index.ts",
+	"compatibility_date": "2026-08-22",
+	"compatibility_flags": [
+		"nodejs_compat"
+	],
+	"d1_databases": [
+		{
+			"binding": "DB",
+			"database_name": "booking",
+		},
+	],
+	"env": {
+		"production": {
+			"name": "bukbuk-api",
+			"workers_dev": false,
+			"preview_urls": false,
+			"routes": [
+				{
+					"pattern": "bukbuk-api.astra-cloud-solutions.com",
+					"custom_domain": true
+				}
+			],
+			"d1_databases": [
+				{
+					"binding": "DB",
+					"database_name": "bukbuk",
+					"database_id": "3e0eda4b-0b70-4316-bf3e-d9100f47ceae"
+				}
+			]
+		}
+	}
 }

@@ -9,5 +9,25 @@
 		"directory": ".svelte-kit/cloudflare"
 	},
 	"workers_dev": true,
-	"preview_urls": false
+	"preview_urls": false,
+	"env": {
+		"production": {
+			"name": "bukbuk-customer",
+			"workers_dev": false,
+			"preview_urls": false,
+			"routes": [
+				{
+					"pattern": "bukbuk-web.astra-cloud-solutions.com",
+					"custom_domain": true
+				}
+			],
+			"assets": {
+				"binding": "ASSETS",
+				"directory": ".svelte-kit/cloudflare"
+			},
+			"vars": {
+				"PUBLIC_API_URL": "https://bukbuk-api.astra-cloud-solutions.com"
+			}
+		}
+	}
 }

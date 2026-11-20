@@ -1,0 +1,6 @@
+TZ=changeit
+JWT_SECRET=changeit
+JWT_REFRESH_SECRET=changeit
+VAPID_PUBLIC_KEY=changeit
+VAPID_PRIVATE_KEY=changeit
+DEVELOPER_SECRET=changeit

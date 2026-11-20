@@ -1592,3 +1592,35 @@ the saved collection was updated locally without publishing.
   Booking logic compares the acronym case-insensitively so both spellings
   support quantity selection, machine assignment, and reservation grouping.
   Booking category labels still read from the separate name column.
+
+# 20 Nov 2026
+
+- Added an env.production block to each existing Wrangler config for the
+  customer, admin and API Workers using bukbuk-web, bukbuk-hello88 and bukbuk-api under
+  astra-cloud-solutions.com. These supersede the earlier workers.dev production
+  hostnames. Production disables workers.dev and preview URLs.
+- The API binds DB to the planned bukbuk D1 database. Replace the ID placeholder
+  after creating it. The production API config omits the unused KV binding.
+  Frontend API URLs are Wrangler vars. Both frontends use their existing ST3
+  business ID default. Production credentials use Wrangler secrets. No remote
+  changes performed.
+- Added a commit-safe API .dev.vars.example with changeit placeholders for all
+  local variables. Copy it to .dev.vars for local setup.
+- Added the supplied 32×32 PNG as the browser-tab favicon in both frontends.
+- Gave the admin browser-tab favicon a root-relative, versioned URL for preview.
+- Set the production API `DB` binding to the newly created `bukbuk` D1 database
+  and restored the default `booking` binding for local development.
+- Removed the unused API KV binding from the Wrangler config and regenerated
+  the Worker types.
+- Made migration 0015 bootstrap ST3 Wonderland and its upfront payment policy
+  on an empty D1 database while preserving existing business settings.
+  All 23 migrations passed on fresh SQLite with foreign keys enabled. The
+  production `bukbuk` D1 retry applied migrations 0015–0023 successfully.
+- Configured the admin production `PUBLIC_VAPID_PUBLIC_KEY` to match the public
+  key uploaded to the production API Worker. Admin deployment is pending.
+- Added migration 0024 to backfill the original Family, Open and VIP categories
+  and their eight rooms in fresh production databases. It uses the existing
+  local IDs and sort orders and preserves existing rows on ID conflicts.
+  The calendar roster query returned the same 12 rooms in the same order on
+  fresh SQLite and existing local D1. Applying 0024 to a copy of local D1
+  wrote zero rows. Rental fees were outside the requested backfill.

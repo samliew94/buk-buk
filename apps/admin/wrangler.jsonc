@@ -9,5 +9,26 @@
 		"directory": ".svelte-kit/cloudflare"
 	},
 	"workers_dev": true,
-	"preview_urls": false
+	"preview_urls": false,
+	"env": {
+		"production": {
+			"name": "bukbuk-admin",
+			"workers_dev": false,
+			"preview_urls": false,
+			"routes": [
+				{
+					"pattern": "bukbuk-hello88.astra-cloud-solutions.com",
+					"custom_domain": true
+				}
+			],
+			"assets": {
+				"binding": "ASSETS",
+				"directory": ".svelte-kit/cloudflare"
+			},
+			"vars": {
+				"PUBLIC_API_URL": "https://bukbuk-api.astra-cloud-solutions.com",
+				"PUBLIC_VAPID_PUBLIC_KEY": "BNhpa5YlpID4M_-O5HmtMlaD67ZO-2cvrRWETFECLlE5FD5qIXbvuWWoytT0rjtULYxBOJIYMCDppZmZmd7jGN4"
+			}
+		}
+	}
 }
