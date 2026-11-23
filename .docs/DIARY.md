@@ -1665,3 +1665,11 @@ the saved collection was updated locally without publishing.
   Removed the extra package-manager metadata documents while preserving the
   workspace dependency resolutions. pnpm 10.0.0 completed a frozen install
   for all five workspace projects in a clean copy.
+- Regenerated the admin Worker declaration with Wrangler 4.153.0 in a clean
+  checkout. Wrangler's freshness check depends on whether the generated Worker
+  entry point exists, so the admin build now runs Vite directly. The freshness
+  check remains part of the explicit admin check command.
+- Confirmed the same Wrangler freshness failure in a clean customer app
+  checkout and again after generating the Worker. Regenerated the customer
+  Worker declaration in the clean checkout and made its build run Vite
+  directly. The explicit customer check still verifies type freshness.
