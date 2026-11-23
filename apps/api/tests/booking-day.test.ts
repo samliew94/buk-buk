@@ -22,7 +22,7 @@ test('booking roster groups categories before ordering physical rooms', async t 
   assert.deepEqual(body.rooms.map((room: any) => room.name), ['OS4', 'VIP', 'R1', 'R2', 'R3', 'R4'])
 })
 
-test('booking day query uses stored business scope, strict overlap, full intervals and stable roster', async t => {
+test('booking queries use stored business scope, strict overlap, full intervals and stable roster', async t => {
   t.mock.method(MyDateTime, 'now', () => new MyDateTime(DateTime.fromISO('2026-11-12T00:00:00.000Z')))
   const { db, d1 } = fixture()
   t.after(() => db.close())
@@ -42,6 +42,8 @@ test('booking day query uses stored business scope, strict overlap, full interva
   insert('cancelled', 'cancelled', 'a', '2026-11-12T02:00:00.000Z', '2026-11-12T03:00:00.000Z')
   insert('end-at-start', 'confirmed', 'a', '2026-11-11T15:00:00.000Z', '2026-11-11T16:00:00.000Z')
   insert('start-at-end', 'confirmed', 'a', '2026-11-12T16:00:00.000Z', '2026-11-12T17:00:00.000Z')
+  insert('last-minute', 'confirmed', 'z', '2026-11-13T15:59:00.000Z', '2026-11-13T16:30:00.000Z')
+  insert('after-range', 'confirmed', 'a', '2026-11-13T16:00:00.000Z', '2026-11-13T17:00:00.000Z')
   // Stored requested category must not establish ownership in either direction.
   insert('foreign', 'confirmed', 'foreign', '2026-11-12T01:00:00.000Z', '2026-11-12T02:00:00.000Z', 'ca', 'foreign')
   db.exec("UPDATE booking SET business_id = 'b' WHERE id = 'foreign'")
@@ -49,6 +51,7 @@ test('booking day query uses stored business scope, strict overlap, full interva
   db.prepare("UPDATE booking SET expire_at = '2026-11-12T00:00:00.001Z' WHERE id = 'pending'").run()
   const app = createStaffTestApp()
   const query = (business_id: string, day = date) => app.request('/v1/bookings', { method: 'QUERY', body: JSON.stringify({ business_id, date: day }) }, { DB: d1 })
+  const range = (business_id: string, from: string, to: string) => app.request('/v1/bookings', { method: 'QUERY', body: JSON.stringify({ business_id, from, to }) }, { DB: d1 })
   const response = await query('a')
   assert.equal(response.status, 200)
   const body = await response.json() as any
@@ -59,6 +62,19 @@ test('booking day query uses stored business scope, strict overlap, full interva
   assert.deepEqual(body.bookings[0], { id: 'previous', customer_id: 'c', customer_name: 'Guest', customer_phone: '0123', status: 'confirmed', created_at: '2026-11-01T00:00:00.000Z', expire_at: '2026-11-01T00:10:00.000Z', reservations: [{ id: 'previous', room_id: 'a', room_name: 'Same', room_category_id: 'ca', room_category_name: 'Family', room_category_acronym: 'FR', from: '2026-11-11T15:00:00.000Z', to: '2026-11-11T16:15:00.000Z', duration: 75 }] })
   assert.deepEqual(body.bookings[1].reservations.map((r: any) => [r.id, r.duration]), [['second', 15], ['pending', 165]])
   assert.equal(body.bookings[3].reservations[0].room_category_name, 'Foreign')
+  const sameDay = await range('a', date, date)
+  assert.equal(sameDay.status, 200)
+  assert.deepEqual(await sameDay.json(), body)
+
+  const rangeResponse = await range('a', date, '2026-11-13')
+  assert.equal(rangeResponse.status, 200)
+  const rangeBody = await rangeResponse.json() as typeof body
+  assert.deepEqual(rangeBody.rooms, body.rooms)
+  assert.deepEqual(rangeBody.bookings.map((b: any) => b.id), ['previous', 'pending', 'cancelled', 'moved', 'start-at-end', 'last-minute'])
+  assert.deepEqual(rangeBody.bookings.slice(0, 4), body.bookings)
+  assert.deepEqual(rangeBody.bookings[5].reservations.map((r: any) => [r.from, r.to, r.duration]), [
+    ['2026-11-13T15:59:00.000Z', '2026-11-13T16:30:00.000Z', 31]
+  ])
   assert.deepEqual(await (await query('missing')).json(), { rooms: [], bookings: [] })
   const empty = await (await query('a', '2020-01-01')).json() as any
   assert.equal(empty.rooms.length, 3)
@@ -78,16 +94,23 @@ test('booking day query uses stored business scope, strict overlap, full interva
     const filtered = await (await query('a')).json() as any
     assert.deepEqual(filtered.bookings.map((b: any) => b.id), ['previous', 'cancelled', 'moved'])
     assert.equal(filtered.rooms.length, 3)
+    const filteredRange = await (await range('a', date, '2026-11-13')).json() as typeof body
+    assert.deepEqual(filteredRange.bookings.map((b: any) => b.id), ['previous', 'cancelled', 'moved', 'start-at-end', 'last-minute'])
   }
   assert.equal(db.prepare("SELECT status FROM booking WHERE id = 'pending'").get()!.status, 'pending')
 
 })
 
-test('booking day endpoint rejects malformed dates/bodies and range filters, and permits QUERY preflight', async () => {
+test('bookings rejects malformed, mixed, partial, reversed and overlong filters and permits QUERY preflight', async () => {
   const app = createStaffTestApp()
   const invalid: unknown[] = [null, [], 1, {}, { date }, { business_id: '', date }, { business_id: 3, date },
     ...['2026-02-30', '2026-11-12T00:00:00+08:00', '20261112', '2026-1-01', '2026-13-01', ' 2026-11-12', null, 123].map(date => ({ business_id: 'a', date })),
-    { business_id: 'a', from: date, to: date }, { business_id: 'a', date, from: date }, { business_id: 'a', date, to: date }]
+    { business_id: 'a', from: date }, { business_id: 'a', to: date }, { business_id: 'a', date, from: date }, { business_id: 'a', date, to: date },
+    { business_id: 'a', date, from: date, to: date }, { business_id: 'a', from: date, to: date, extra: true },
+    { business_id: 'a', from: '2026-02-29', to: date }, { business_id: 'a', from: date, to: '2026-11-31' },
+    { business_id: 'a', from: date, to: null }, { business_id: 'a', from: date, to: '2026-11-11' },
+    { business_id: 'a', from: '2026-11-23', to: '2027-11-23' },
+    { business_id: 'a', from: '2024-02-29', to: '2025-02-28' }]
   for (const body of invalid) {
     const response = await app.request('/v1/bookings', { method: 'QUERY', body: JSON.stringify(body) }, {})
     assert.equal(response.status, 400, JSON.stringify(body))
@@ -98,4 +121,17 @@ test('booking day endpoint rejects malformed dates/bodies and range filters, and
   assert.equal(preflight.status, 204)
   assert.match(preflight.headers.get('Access-Control-Allow-Methods')!, /QUERY/)
   assert.match(preflight.headers.get('Access-Control-Allow-Headers')!, /Content-Type/i)
+})
+
+test('bookings accepts the last day before the anniversary, including a leap-day start', async t => {
+  const { db, d1 } = fixture()
+  t.after(() => db.close())
+  const app = createStaffTestApp()
+  for (const [from, to] of [['2026-11-23', '2027-11-22'], ['2024-02-29', '2025-02-27']]) {
+    const response = await app.request('/v1/bookings', {
+      method: 'QUERY', body: JSON.stringify({ business_id: 'a', from, to })
+    }, { DB: d1 })
+    assert.equal(response.status, 200, from + ' through ' + to)
+    assert.deepEqual(await response.json(), { rooms: [], bookings: [] })
+  }
 })

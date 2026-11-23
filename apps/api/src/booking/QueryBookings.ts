@@ -8,8 +8,9 @@ type Reservation = { id: string; room_id: string; room_name: string; room_catego
 export class QueryBookings {
   constructor(private readonly _d1: D1Database) {}
 
-  async query(businessId: Guid, date: MyDateTime) {
-    const day = new MyDateTime(date.value.setZone('Asia/Kuala_Lumpur').startOf('day'))
+  async query(businessId: Guid, from: MyDateTime, to: MyDateTime) {
+    const rangeStart = new MyDateTime(from.value.setZone('Asia/Kuala_Lumpur')).startOfDay()
+    const rangeEnd = new MyDateTime(to.value.setZone('Asia/Kuala_Lumpur')).nextDay()
     const { results: rooms } = await this._d1.prepare(`
       SELECT room.id, room.room_category_id, room.name, room.sort_order,
         c.name AS room_category_name, c.acronym AS room_category_acronym
@@ -29,7 +30,7 @@ export class QueryBookings {
       WHERE b.business_id = ? AND r."from" < ? AND r."to" > ?
         AND (b.status != 'pending' OR b.expire_at > ?)
       ORDER BY r."from", room.sort_order, room.name, room.id, r.id
-    `).bind(businessId.value, day.nextDay().toUtcIso(), day.toUtcIso(), MyDateTime.now().toUtcIso())
+    `).bind(businessId.value, rangeEnd.toUtcIso(), rangeStart.toUtcIso(), MyDateTime.now().toUtcIso())
       .all<Omit<Booking, 'id'> & Reservation & { booking_id: string }>()
     const bookings = new Map<string, Booking & { reservations: (Reservation & { duration: number })[] }>()
     for (const row of results) {

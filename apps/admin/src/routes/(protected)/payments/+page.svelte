@@ -4,6 +4,10 @@
 	import { onMount } from 'svelte';
 	import { DateTime } from 'luxon';
 	import AdminNav from '$lib/auth/AdminNav.svelte';
+	import DateRangePicker, {
+		formatCalendarDateRange,
+		type CalendarDateRange
+	} from '$lib/admin/DateRangePicker.svelte';
 	type Payment = {
 		id: string;
 		booking_id: string;
@@ -20,26 +24,25 @@
 	let loading = $state(true);
 	let message = $state('');
 	let attempt = $state(0);
-	let selectedDate = $state('');
+	let selectedRange = $state<CalendarDateRange>();
 	onMount(() => {
-		selectedDate = DateTime.now().setZone('Asia/Kuala_Lumpur').toISODate()!;
+		const today = DateTime.now().setZone('Asia/Kuala_Lumpur').toISODate()!;
+		selectedRange = { from: today, to: today };
 	});
-	let day = $derived(DateTime.fromISO(selectedDate || '1970-01-01', { zone: 'Asia/Kuala_Lumpur' }));
 	function local(value: string) {
 		return DateTime.fromISO(value)
 			.setZone('Asia/Kuala_Lumpur')
 			.setLocale('en')
 			.toFormat('dd LLL yyyy h:mma');
 	}
-	function changeDate(event: Event) {
-		const date = (event.currentTarget as HTMLInputElement).value;
-		if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !DateTime.fromISO(date).isValid) return;
-		selectedDate = date;
+	function changeRange(range: CalendarDateRange) {
+		if (selectedRange?.from === range.from && selectedRange.to === range.to) return;
+		selectedRange = range;
 	}
 	$effect(() => {
 		const { apiUrl, businessId } = data;
-		const date = selectedDate;
-		if (!date) return;
+		const range = selectedRange;
+		if (!range) return;
 		void attempt;
 		const controller = new AbortController();
 		loading = true;
@@ -51,7 +54,7 @@
 				const response = await staffFetch(apiUrl, '/v1/payments', {
 					method: 'QUERY',
 					headers: { 'Content-Type': 'application/json' },
-					body: JSON.stringify({ business_id: businessId, date }),
+					body: JSON.stringify({ business_id: businessId, ...range }),
 					signal: AbortSignal.any([controller.signal, AbortSignal.timeout(8000)])
 				});
 				if (!response.ok) throw new Error('Query failed');
@@ -78,23 +81,20 @@
 	<AdminNav links={data.navigation} name={data.name} />
 </div>
 <main>
-	<div class="controls">
-		<label for="payment-date">Date</label>
-		<div class="date-control">
-			<span aria-hidden="true"
-				>{selectedDate ? day.setLocale('en').toFormat('ccc, dd LLL yyyy') : 'Select date'}</span
-			>
-			<input id="payment-date" type="date" value={selectedDate} onchange={changeDate} />
+	{#if selectedRange}
+		<div class="controls">
+			<label for="payment-date">Date</label>
+			<DateRangePicker id="payment-date" value={selectedRange} onCommit={changeRange} />
 		</div>
-	</div>
-	<section aria-label="Payments for selected date" aria-busy={loading}>
+	{/if}
+	<section aria-label="Payments for selected date range" aria-busy={loading}>
 		{#if loading}
 			<p role="status">Loading payments...</p>
 		{:else if message}
 			<p role="alert">{message}</p>
 			<button class="retry" onclick={() => attempt++}>Retry</button>
 		{:else if !result.length}
-			<p role="status">No payments for this date.</p>
+			<p role="status">No payments for this date range.</p>
 		{:else}
 			<!-- svelte-ignore a11y_no_noninteractive_tabindex (Keyboard users need to scroll the table.) -->
 			<div
@@ -104,7 +104,10 @@
 				tabindex="0"
 			>
 				<table>
-					<caption class="sr-only">Payments for {selectedDate}, Malaysia time</caption>
+					<caption class="sr-only"
+						>Payments for {selectedRange ? formatCalendarDateRange(selectedRange) : ''}, Malaysia
+						time</caption
+					>
 					<thead
 						><tr
 							><th scope="col">Date / time</th><th scope="col">Customer</th><th scope="col"
@@ -150,35 +153,8 @@
 			14px/1.4 'Montserrat',
 			sans-serif;
 	}
-	input,
 	button {
 		font-family: inherit;
-	}
-	input {
-		color-scheme: light;
-	}
-	.date-control {
-		position: relative;
-		border: 0;
-		background: var(--color-booking-primary);
-		color: var(--color-booking-black);
-		border-radius: 4px;
-		padding: 8px 12px;
-	}
-	.date-control input {
-		position: absolute;
-		inset: 0;
-		width: 100%;
-		height: 100%;
-		opacity: 0;
-		cursor: pointer;
-	}
-	.date-control input::-webkit-calendar-picker-indicator {
-		position: absolute;
-		inset: 0;
-		width: auto;
-		height: auto;
-		cursor: pointer;
 	}
 	.retry {
 		border-color: var(--color-booking-primary);
@@ -194,7 +170,6 @@
 		gap: 12px;
 		margin-bottom: 20px;
 	}
-	input,
 	.retry {
 		border: 1px solid var(--color-booking-muted);
 		border-radius: 4px;

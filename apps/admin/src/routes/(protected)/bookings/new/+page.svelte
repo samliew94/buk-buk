@@ -116,8 +116,8 @@
 	<title>New booking{data.name ? ` · ${data.name}` : ''}</title>
 </svelte:head>
 
-<main class="mx-auto max-w-5xl">
-	<AdminNav links={data.navigation} name={data.name} />
+<AdminNav links={data.navigation} name={data.name} />
+<main class="min-w-0 px-6 max-[600px]:px-4">
 	<section class="mt-8 overflow-hidden rounded-2xl bg-booking-container shadow-sm">
 		<div class="px-5 pt-5 sm:px-7 sm:pt-7">
 			<p class="text-[14px]! font-semibold text-booking-white">Select Date</p>
@@ -296,7 +296,7 @@
 </main>
 
 <div
-	class="pointer-events-none fixed inset-x-0 bottom-0 z-50 mx-auto flex max-w-5xl justify-center rounded-t-2xl bg-booking-container pt-5 sm:justify-end sm:rounded-none sm:bg-transparent sm:pt-0"
+	class="pointer-events-none fixed inset-x-0 bottom-0 z-50 flex justify-center rounded-t-2xl bg-booking-container pt-5 sm:justify-end sm:rounded-none sm:bg-transparent sm:px-6 sm:pt-0"
 	style="padding-bottom: max(1.25rem, env(safe-area-inset-bottom));"
 >
 	<Button

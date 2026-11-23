@@ -2,12 +2,12 @@ import { URL } from 'node:url'
 import { DatabaseSync } from 'node:sqlite'
 import { readFileSync, readdirSync } from 'node:fs'
 export function fixture(beforeCategoryMigration = false) {
-  // Site-specific configuration migrations 0014–0016 require ST3 seed data.
+  // Omit site-specific ST3 configuration and room seed data.
   const db = new DatabaseSync(':memory:')
   db.exec('PRAGMA foreign_keys = ON')
   const dir = new URL('../migrations/', import.meta.url)
   for (const name of readdirSync(dir)
-    .filter((n) => n.endsWith('.sql') && (n < '0014' || n >= '0017'))
+    .filter((n) => n.endsWith('.sql') && (n < '0014' || n >= '0017') && !n.startsWith('0024_'))
     .sort()) {
     if (beforeCategoryMigration && name >= '0013') continue
     db.exec(readFileSync(new URL(name, dir), 'utf8'))

@@ -2,8 +2,14 @@
 pg = payment gateway
 txn = transaction
 
+# Terminology
+`customer app` refers to `apps/web`.
+
 # Ticket references
 When the input is `NNNN` (a four-digit number), treat it as a ticket number referring to the matching file in `.prds/*`.
+
+# Code as input
+Before implementing a change, read the affected code and the closest comparable implementation. Follow the existing conventions for naming, structure, formatting, and behavior. Reuse shared components, styles, tokens, and helpers where they fit. Treat explicit task requirements as the authority for any intentional departure from existing patterns.
 
 # Handling API errors
 when throwing errors, throw in this format example:

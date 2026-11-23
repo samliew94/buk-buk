@@ -15,6 +15,10 @@ Read the repository root `AGENTS.md` and any applicable directory instructions b
 
 ## Write the requirements
 
+- When documenting changes to existing behavior, inspect the relevant
+  implementation and use its terminology. Apply the `AGENTS.md` “Code as
+  input” rule when implementation is part of the task.
+
 Use these sections in this order, with substantive content appropriate to the request:
 
 ```markdown

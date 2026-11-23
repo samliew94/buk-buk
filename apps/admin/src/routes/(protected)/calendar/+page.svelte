@@ -2,6 +2,7 @@
 	import { staffFetch, requestMessage } from '$lib/auth/staff';
 	import { onMount } from 'svelte';
 	import { DateTime } from 'luxon';
+	import DatePicker from '$lib/admin/DatePicker.svelte';
 	import AdminNav from '$lib/auth/AdminNav.svelte';
 	import { layoutDay, type DayBookings } from '$lib/admin/booking-grid';
 	import type { PageData } from './$types';
@@ -24,11 +25,6 @@
 			.setZone('Asia/Kuala_Lumpur')
 			.setLocale('en')
 			.toFormat('dd LLL yyyy HH:mm');
-	}
-	function changeDate(event: Event) {
-		const date = (event.currentTarget as HTMLInputElement).value;
-		if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !DateTime.fromISO(date).isValid) return;
-		selectedDate = date;
 	}
 	$effect(() => {
 		const timer = setInterval(() => {
@@ -80,12 +76,7 @@
 <main>
 	<div class="controls">
 		<label for="booking-date">Date</label>
-		<div class="date-control">
-			<span aria-hidden="true"
-				>{selectedDate ? day.setLocale('en').toFormat('ccc, dd LLL yyyy') : 'Select date'}</span
-			>
-			<input id="booking-date" type="date" value={selectedDate} onchange={changeDate} />
-		</div>
+		<DatePicker id="booking-date" value={selectedDate} onCommit={(date) => (selectedDate = date)} />
 	</div>
 	<section aria-label="Calendar for selected date" aria-busy={loading}>
 		{#if loading}
@@ -179,35 +170,8 @@
 			14px/1.4 'Montserrat',
 			sans-serif;
 	}
-	input,
 	button {
 		font-family: inherit;
-	}
-	input {
-		color-scheme: light;
-	}
-	.date-control {
-		position: relative;
-		border: 0;
-		background: var(--color-booking-primary);
-		color: var(--color-booking-black);
-		border-radius: 4px;
-		padding: 8px 12px;
-	}
-	.date-control input {
-		position: absolute;
-		inset: 0;
-		width: 100%;
-		height: 100%;
-		opacity: 0;
-		cursor: pointer;
-	}
-	.date-control input::-webkit-calendar-picker-indicator {
-		position: absolute;
-		inset: 0;
-		width: auto;
-		height: auto;
-		cursor: pointer;
 	}
 	.retry,
 	.details button {
@@ -228,7 +192,6 @@
 	.category {
 		color: var(--color-booking-muted);
 	}
-	input,
 	.retry,
 	.details button {
 		border: 1px solid var(--color-booking-muted);
@@ -337,7 +300,6 @@
 	}
 	.block:focus-visible,
 	button:focus-visible,
-	input:focus-visible,
 	.scroll:focus-visible {
 		outline: 3px solid var(--color-booking-primary);
 		outline-offset: 2px;

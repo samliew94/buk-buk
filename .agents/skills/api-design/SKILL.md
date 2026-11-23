@@ -9,6 +9,9 @@ Use this skill for API work in `apps/api`. Read `AGENTS.md` and the affected con
 
 ## Routes and methods
 
+- Apply the `AGENTS.md` “Code as input” rule. Use a comparable endpoint to
+  check naming, validation, error handling, and response conventions.
+
 - Use resource paths under `/v1`, such as `/v1/rooms`, rather than nesting rooms under businesses. Supply business scope in the JSON body as `business_id`.
 - Use `QUERY` for new data query endpoints, with filters in a JSON object body. Register with Hono's `.query()`. Do not read query filters from URL query parameters or silently fall back to them.
 - Use `POST /v1/:resources` for creation and `PUT /v1/:resources/:id` for updates. Keep record IDs in the path and generate new IDs on the server with `Guid.new()`.

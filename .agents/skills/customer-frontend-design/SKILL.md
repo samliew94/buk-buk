@@ -5,6 +5,9 @@ description: Build or revise customer booking screens in apps/web using the book
 
 # Customer frontend design
 
+- Apply the `AGENTS.md` “Code as input” rule. Inspect the closest customer
+  booking screen and reuse its shared components and theme conventions.
+
 - Use Tailwind directives and utilities. Define booking theme tokens in `packages/ui/theme.css`. Keep primary, secondary, ghost, info, success, danger, and warning colors there, along with h1, h2, h3, paragraph, and body sizes.
 - Use Montserrat by default, including form controls and buttons. Date button text uses Poppins from Google Fonts: weekday 14px regular (400), date 18px bold (700), month 12px regular (400). Reuse the font imports in the customer layout and the `font-poppins` theme utility.
 - Date, room category, and time selection buttons share these hover rules:

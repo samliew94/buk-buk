@@ -33,7 +33,9 @@
 		"wrangler": "^4.97.0"
 	},
 	"dependencies": {
-		"luxon": "^3.7.2",
-		"@booking/ui": "workspace:*"
+		"@booking/ui": "workspace:*",
+		"@internationalized/date": "^3.12.4",
+		"bits-ui": "^2.22.0",
+		"luxon": "^3.7.2"
 	}
 }

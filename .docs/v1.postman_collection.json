@@ -1262,6 +1262,60 @@
             ],
             "body": {
               "mode": "raw",
+              "raw": "{\n  \"business_id\": \"{{business_id}}\",\n  \"from\": \"2026-11-23\",\n  \"to\": \"2026-11-30\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "url": "{{url}}/v1/bookings",
+            "description": "Inclusive Asia/Kuala_Lumpur calendar range. Both endpoints are required in YYYY-MM-DD format, and to must be on or after from and before its one-year anniversary. Returns rooms (including unbooked rooms) and bookings with customer_name, customer_phone and matching full reservation intervals. Pending bookings are included only while expire_at is later than the current UTC time. Expired pending holds are excluded; other statuses are unchanged. Returns 400 for partial, mixed, unknown, invalid, reversed or overlong filters.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{access_token}}",
+                  "type": "string"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Range query returns rooms and bookings\", function () {",
+                  "  pm.response.to.have.status(200);",
+                  "  const data = pm.response.json();",
+                  "  pm.expect(Object.keys(data).sort()).to.eql([\"bookings\", \"rooms\"]);",
+                  "  pm.expect(data.rooms).to.be.an(\"array\");",
+                  "  pm.expect(data.bookings).to.be.an(\"array\");",
+                  "  data.bookings.forEach(function (booking) {",
+                  "    pm.expect(booking.customer_name).to.be.a(\"string\");",
+                  "    pm.expect(booking.customer_phone).to.be.a(\"string\");",
+                  "  });",
+                  "});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "QueryBookings (legacy day)",
+          "request": {
+            "method": "QUERY",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
               "raw": "{\n  \"business_id\": \"{{business_id}}\",\n  \"date\": \"2026-11-12\"\n}",
               "options": {
                 "raw": {
@@ -1270,7 +1324,7 @@
               }
             },
             "url": "{{url}}/v1/bookings",
-            "description": "Malaysia calendar day overlaps. Returns rooms (including unbooked rooms) and bookings with customer_name, customer_phone and matching full reservation intervals. Pending bookings are included only while expire_at is later than the current UTC time. Expired pending holds are excluded; other statuses are unchanged. Rejects range filters.",
+            "description": "Single Malaysia calendar day for the admin calendar, equivalent to setting from and to to the same date. Returns rooms (including unbooked rooms) and bookings with customer_name, customer_phone and matching full reservation intervals. Pending bookings are included only while expire_at is later than the current UTC time. Expired pending holds are excluded; other statuses are unchanged. Supply date by itself with business_id.",
             "auth": {
               "type": "bearer",
               "bearer": [
@@ -1535,7 +1589,7 @@
         ],
         "body": {
           "mode": "raw",
-          "raw": "{\n  \"business_id\": \"{{business_id}}\",\n  \"date\": \"2026-11-12\"\n}",
+          "raw": "{\n  \"business_id\": \"{{business_id}}\",\n  \"from\": \"2026-11-12\",\n  \"to\": \"2026-11-14\"\n}",
           "options": {
             "raw": {
               "language": "json"
@@ -1543,7 +1597,7 @@
           }
         },
         "url": "{{url}}/v1/payments",
-        "description": "All stored payment rows for the Malaysia creation day, newest first by created_at then id. Business scope follows assigned rooms and current categories; no duplicates.",
+        "description": "All stored payment rows created within the inclusive Malaysia date range, newest first by created_at then id. Business scope follows the stored booking business_id. A legacy date filter also supports single-day queries.",
         "auth": {
           "type": "bearer",
           "bearer": [

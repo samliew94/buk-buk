@@ -5,6 +5,10 @@ description: Build or revise admin screens in apps/admin, including /bookings an
 
 # Admin frontend design
 
+- Apply the `AGENTS.md` “Code as input” rule. Compare the affected screen with the
+  closest admin screen and inspect the shared theme for typography, spacing,
+  and component conventions.
+
 - Use `var(--color-booking-muted)` for admin text-entry labels, including
   Username and Password on `/login`. Use `var(--color-booking-white)` for
   the entered text.

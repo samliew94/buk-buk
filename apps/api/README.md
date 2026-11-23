@@ -36,7 +36,7 @@ All request and response JSON object keys use snake_case, including records with
 | PUT | `/v1/room-category-rental-fees/:id` | Staff bearer JWT, fee JSON below | 200 with the updated fee; invalid input is 400, missing fee is 404 |
 | POST | `/v1/bookings` | Public, booking JSON below | 201 with `{ "booking_id": "...", "payment_url": null }` (temporary upfront payment bypass); invalid input is 400 |
 | QUERY | `/v1/reservations` | Public, JSON `{ "business_id": "...", "from": "...", "to": "..." }` or `{ "business_id": "...", "date": "2025-12-31T16:00:00Z" }` | 200 with an array of booking records; invalid input is 400 |
-| QUERY | `/v1/payments` | Staff bearer JWT, JSON `{ "business_id": "...", "date": "2026-11-12" }` | Payment history for the Malaysia calendar day |
+| QUERY | `/v1/payments` | Staff bearer JWT, JSON `{ "business_id": "...", "date": "2026-11-12" }` or JSON `{ "business_id": "...", "from": "2026-11-12", "to": "2026-11-14" }` | Payment history for the inclusive Malaysia date range |
 | PUT | `/v1/bookings/:bookingId` | Staff bearer JWT | 200 with updated reservation list in the booking response |
 | POST | `/v1/auth/login` | Public, JSON `{ "username": "...", "password": "..." }` | Token pair |
 | POST | `/v1/auth/refresh` | Public, JSON `{ "refresh_token": "..." }` | Replacement token pair |
@@ -87,7 +87,7 @@ Customer writes require nonblank string `name` and `phone` values. POST generate
 
 QUERY `/v1/room-category-rental-fees` accepts `{ "room_category_id": "..." }` and returns the first fee by ID or null, including unknown categories. POST and PUT `/:id` require `{ "room_category_id": "...", "duration": 1, "price": 12.5 }` and return 201/200 with ID and those fields. Duration remains a nonnegative safe integer; price is finite and nonnegative. Missing fee updates return 404; category references rely on foreign keys. Multiple fees per category remain allowed. No quotation calculation is introduced. The former room-rental-fees routes are retired.
 
-Booking creation stores a UTC ISO expiry timestamp in `booking.expire_at`, initially 10 minutes after creation. Both reservation query methods return this stored timestamp as `expire_at`. This deadline applies to pending bookings only; confirmed bookings remain reserved. Reservation queries include expired bookings; the booking day query excludes expired pending holds. Clients determine expiry using pending status and current time >= `expire_at`; no `isExpired` field is returned. Stored status remains unchanged. Availability checks ignore expired pending bookings; confirmed bookings continue to block rooms.
+Booking creation stores a UTC ISO expiry timestamp in `booking.expire_at`, initially 10 minutes after creation. Both reservation query methods return this stored timestamp as `expire_at`. This deadline applies to pending bookings only; confirmed bookings remain reserved. Reservation queries include expired bookings; `QUERY /v1/bookings` excludes expired pending holds. Clients determine expiry using pending status and current time >= `expire_at`; no `isExpired` field is returned. Stored status remains unchanged. Availability checks ignore expired pending bookings; confirmed bookings continue to block rooms.
 
 Demo webhook IDs are required nonblank strings: `order_id` is the gateway `demo_payment_order.id`, and `reference_id` is our internal `payment.id` (stored by the demo gateway as `reference_id`). The handler resolves the payment using `reference_id`; it does not query or update the gateway database using `order_id`.
 
@@ -99,26 +99,35 @@ The gateway-independent `/customer/payments/{payment_id}` page fetches `GET /v1/
 
 `CreateBooking.exec` accepts a final `skipPayment` boolean (default `false`, after quantity, which defaults to 0 for non-Racing use-case calls; Racing requires an explicit integer from 1–4). When true, payment is unnecessary regardless of business policy: the booking confirms immediately, creates no payment or gateway order, and returns `payment_url: null`. Otherwise the configured upfront payment policy applies; a missing policy or a policy price of 0.00 requires no payment, including no gateway fee. The controller temporarily always passes `skipPayment = true` for all callers; future actor-role handling will derive this flag for admins rather than accepting it from the request body.
 
-## Admin booking day grid
+## Admin bookings and calendar
 
-`QUERY /v1/bookings` accepts only `business_id` (nonblank string) and `date`
-(strict valid `YYYY-MM-DD`, interpreted in Asia/Kuala_Lumpur). Invalid JSON,
-non-object bodies, missing/invalid fields and range/unknown filters return 400.
-The interval is Malaysia midnight to the next midnight, bound as UTC ISO strings:
-reservation start < day end and reservation end > day start. Exact touching
-boundaries are excluded. No parent existence lookup is required; an unknown
-business returns empty arrays.
+`QUERY /v1/bookings` requires a staff access token and a JSON object with a
+nonblank `business_id`. The admin bookings list sends
+`{"business_id":"…","from":"2026-11-23","to":"2026-11-30"}`. The admin calendar
+can still send `{"business_id":"…","date":"2026-11-23"}`, which is equivalent to
+setting both endpoints to the same date. Dates use strict `YYYY-MM-DD` in
+Asia/Kuala_Lumpur. Both endpoints are inclusive. The end must be on or after
+the start and before its one-year anniversary. For a 29 February start, the
+anniversary is 28 February and the last allowed end date is 27 February.
+Invalid JSON, non-object bodies, unknown fields, incomplete ranges, mixed
+`date` and range fields, invalid dates, reversed ranges and ranges reaching
+or exceeding the anniversary return 400.
 
-Daily reservations use stored booking.business_id; room reassignment does not
-transfer booking history. The room roster still uses current room categories.
+A reservation matches when it starts before Malaysia midnight after the end
+date and ends after Malaysia midnight on the start date. The API compares both
+boundaries in UTC. Exact touching boundaries are excluded. An unknown business
+returns empty arrays.
+
+Reservations are scoped by the stored booking business. The room roster uses
+current room categories.
 
 The response contains all physical `rooms` for the business, including unbooked
 rooms, ordered by category sort_order, then room sort_order, with category name/ID and room name/ID as tie-breakers. Room fields are `id`, `room_category_id`,
 `name`, `sort_order`, `room_category_name`, `room_category_acronym`. `bookings`
 contains the existing single-booking lookup fields and only matching
 `reservations`, with their existing room/category fields and duration in minutes.
-Full intervals are retained. Ownership follows the current physical room category;
-reservation category information describes the stored requested category.
+Full intervals are retained. Reservation category information describes the
+stored requested category.
 Bookings/reservations are ordered by reservation start, room sort_order/name/id,
 then reservation ID, with bookings in first-match order. Pending bookings are
 returned only while `expire_at` is later than the current UTC time; expired pending
@@ -126,34 +135,28 @@ holds are excluded. Other stored statuses are returned unchanged.
 Two direct SQL reads supply the result without per-booking queries or D1 metadata.
 The existing GET booking lookup remains unchanged.
 
-Read-only `/admin/bookings` uses the configured public API/business ID and one
-query per selected date. The URL retains `?date=YYYY-MM-DD`; missing/invalid dates
-default to today in Malaysia. The grid displays at least 24 hours, extending to
-the whole hour after the latest matched reservation ends without querying the
-extension. Blocks clip at selected-day midnight and stack overlaps in lanes.
-Pending cards also disappear locally when their hold expires while the page is
-open, without another API request. The collection query requires a staff access token.
-
-The day query `QUERY /v1/bookings` includes `customer_name` and `customer_phone` on each booking, joined from its customer record, for the admin grid cards.
+Each booking includes `customer_name` and `customer_phone` from its customer record.
 
 Temporary room conflict bypass: booking assignment ignores existing reservations for all categories, including RACING. Machines remain distinct within each booking and quantity cannot exceed the physical room count. Set `bypassRoomConflicts` to `false` in `QueryAvailableRooms.ts` to restore reservation overlap checks. Customer time-slot availability filtering remains active.
 
 ## Admin payment history
 
-`QUERY /v1/payments` accepts only `{ "business_id": "...", "date": "2026-11-12" }`.
-Both fields are required; malformed JSON, non-object bodies, unsupported fields,
-blank business IDs and invalid/non-YYYY-MM-DD dates return 400. The collection query requires a staff access token. Returns an array of `{ id, booking_id, created_at, price, status,
+`QUERY /v1/payments` requires a staff access token and a nonblank `business_id`.
+Send both `from` and `to` as inclusive Malaysia calendar dates in `YYYY-MM-DD`
+format, or send `date` alone for a single day. The end must be on or after the
+start and precede its one-year anniversary. Invalid filters return 400.
+Returns an array of `{ id, booking_id, created_at, price, status,
 customer_name, customer_phone }`, or `[]`. Every stored payment row/status is
 retained, including pending history for completed or cancelled bookings.
-Filter payment creation within the selected Malaysia day (inclusive midnight,
-exclusive next midnight converted to UTC); order by created_at DESC, id DESC.
+Filter payment creation from midnight on the first Malaysia date through the
+end of the last date, using UTC timestamp bounds; order by created_at DESC, id DESC.
 Business ownership uses stored booking.business_id, including bookings without
 reservations. Room reassignment does not transfer payments; multiple reservations
 do not duplicate payments.
 
-`/admin/payments` initializes today in Malaysia time on mount and retains date
-selection in component state. The horizontally scrolling table pins View actions
-to its right edge; View opens the associated customer booking in the same tab.
+`/payments` defaults both dates to today in Malaysia and keeps the selected
+range in page state. The horizontally scrolling table pins View actions to its
+right edge. View opens the associated admin booking in the same tab.
 
 ## Replace booking reservations
 

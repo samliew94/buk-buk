@@ -1222,6 +1222,10 @@ the saved collection was updated locally without publishing.
   12-hour times with uppercase AM/PM and no space, such as 10:00AM and 4:00PM.
   Existing dates and timezone handling are preserved.
 - Recorded both pages' time formatting in the admin frontend design skill.
+- The admin bookings table displays the stored start and end on the reservation
+  time line, for example `10:45AM-11:45AM`, with duration on the following line.
+- Removed the Bookings date control's focus outline so it stays borderless
+  when clicked, matching Calendar and Payments.
 
 
 ## Admin PWA and VAPID PRDs (13 Nov 2026)
@@ -1624,3 +1628,35 @@ the saved collection was updated locally without publishing.
   The calendar roster query returned the same 12 rooms in the same order on
   fresh SQLite and existing local D1. Applying 0024 to a copy of local D1
   wrote zero rows. Rental fees were outside the requested backfill.
+
+# 23 Nov 2026
+
+- Admin `/bookings` uses a shared Bits UI date range picker. Both dates default
+  to today in Malaysia and stay in page state. A first selection stays in the
+  picker until the second valid selection. Closing the picker discards the draft.
+  A changed range triggers one staff query. The filter is labeled Date, and
+  each reservation starts with a separate local date line above the room
+  details. Overnight reservations show both local dates on that line.
+- Staff `QUERY /v1/bookings` accepts inclusive Malaysia `from` and `to` dates.
+  The end must precede the start's one-year anniversary. For a leap-day start,
+  27 February of the following year is the last allowed end. The overlap query
+  preserves full reservation intervals and pending-hold expiry. Admin `/calendar`
+  continues to send a legacy `date`. Updated the API README and Postman examples.
+- API type checking, all 112 API tests, admin Svelte check and production build
+  passed. Shared SQLite test setup omits the site-specific room backfill because
+  its ST3 business seed is also omitted. Chrome at 320px verified same-day,
+  cross-month and reverse selection, dismissal, keyboard focus, the year limit,
+  and reservation date labels against local D1 through the API.
+- Admin `/payments` uses the same Date range picker as `/bookings`, defaulting
+  both dates to today in Malaysia. Staff payment queries filter creation times
+  across the inclusive range, preserving the legacy single-date filter and
+  newest-first payment history.
+- Admin Notifications uses the same 24px heading as Users, with 15px status
+  text and 14px supporting copy. The page overrides the customer typography
+  rules that previously took precedence over its text-size utilities.
+- Admin `/calendar` uses a reusable Bits UI single-date picker. Selecting a
+  date closes the popup. The page still defaults to today in Malaysia and
+  queries bookings for the selected day.
+- Admin `/bookings/new` uses a full-width navbar and the same page gutters as
+  the bookings list. The fixed Confirm button aligns with the form's right
+  edge on desktop and stays centered on mobile.

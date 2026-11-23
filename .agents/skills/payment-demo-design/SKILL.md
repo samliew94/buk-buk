@@ -9,6 +9,9 @@ Use `apps/web/src/routes/payment/demo/[orderId]/+page.svelte` and its adjacent
 `+page.server.ts`. This gateway page uses a light theme separate from the
 customer booking screens.
 
+Apply the `AGENTS.md` “Code as input” rule. Use the current demo route as the
+reference for its component, typography, and payment status conventions.
+
 ## Appearance
 
 - Keep a light slate background (`bg-slate-100`), dark slate text

@@ -222,11 +222,13 @@
 			aria-labelledby="notifications-title"
 			aria-busy={busy}
 		>
-			<h1 id="notifications-title" class="text-xl font-bold">Notifications</h1>
-			<p class="mt-3 text-sm text-booking-muted">
+			<h1 id="notifications-title" class="text-2xl!">Notifications</h1>
+			<p class="mt-3 text-sm! text-booking-muted">
 				Manage notifications for this browser or installed app.
 			</p>
-			<p class="my-5" role="status" aria-live="polite" aria-atomic="true">{message}</p>
+			<p class="my-5 text-booking-body!" role="status" aria-live="polite" aria-atomic="true">
+				{message}
+			</p>
 			<div class="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
 				{#if canEnable}
 					<Button disabled={busy} onclick={() => enable()}>Enable notifications</Button>
@@ -244,7 +246,7 @@
 					>
 				{/if}
 			</div>
-			<div class="mt-6 space-y-3 text-sm text-booking-muted">
+			<div class="mt-6 space-y-3 text-booking-muted [&>p]:text-sm!">
 				<p>
 					If blocked, open this site's browser permissions and allow notifications, then Retry. In
 					an installed iPhone/iPad app, check its Notifications settings in system Settings. A

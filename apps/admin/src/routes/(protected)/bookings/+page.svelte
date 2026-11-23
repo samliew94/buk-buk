@@ -4,6 +4,10 @@
 	import { onMount } from 'svelte';
 	import { DateTime } from 'luxon';
 	import AdminNav from '$lib/auth/AdminNav.svelte';
+	import DateRangePicker, {
+		formatCalendarDateRange,
+		type CalendarDateRange
+	} from '$lib/admin/DateRangePicker.svelte';
 	import type { Booking } from '$lib/admin/booking-grid';
 	import {
 		groupBookingReservations,
@@ -17,7 +21,7 @@
 	let loading = $state(true);
 	let message = $state('');
 	let attempt = $state(0);
-	let selectedDate = $state('');
+	let selectedRange = $state<CalendarDateRange>();
 	let now = $state(Date.now());
 	let bookings = $derived(
 		result
@@ -38,9 +42,9 @@
 		return () => clearInterval(timer);
 	});
 	onMount(() => {
-		selectedDate = DateTime.now().setZone('Asia/Kuala_Lumpur').toISODate()!;
+		const today = DateTime.now().setZone('Asia/Kuala_Lumpur').toISODate()!;
+		selectedRange = { from: today, to: today };
 	});
-	let day = $derived(DateTime.fromISO(selectedDate || '1970-01-01', { zone: 'Asia/Kuala_Lumpur' }));
 	function local(value: string, format: string) {
 		return DateTime.fromISO(value).setLocale('en').toFormat(format);
 	}
@@ -54,15 +58,19 @@
 			.filter(Boolean)
 			.join(' ');
 	}
-	function changeDate(event: Event) {
-		const date = (event.currentTarget as HTMLInputElement).value;
-		if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !DateTime.fromISO(date).isValid) return;
-		selectedDate = date;
+	function changeRange(range: CalendarDateRange) {
+		if (selectedRange?.from === range.from && selectedRange.to === range.to) return;
+		selectedRange = range;
+	}
+	function reservationDate(from: string, to: string) {
+		const startDate = local(from, 'ccc, dd LLL yyyy');
+		const endDate = local(to, 'ccc, dd LLL yyyy');
+		return startDate === endDate ? startDate : `${startDate} - ${endDate}`;
 	}
 	$effect(() => {
 		const { apiUrl, businessId } = data;
-		const date = selectedDate;
-		if (!date) return;
+		const range = selectedRange;
+		if (!range) return;
 		void attempt;
 		const controller = new AbortController();
 		loading = true;
@@ -74,7 +82,7 @@
 				const response = await staffFetch(apiUrl, '/v1/bookings', {
 					method: 'QUERY',
 					headers: { 'Content-Type': 'application/json' },
-					body: JSON.stringify({ business_id: businessId, date }),
+					body: JSON.stringify({ business_id: businessId, ...range }),
 					signal: AbortSignal.any([controller.signal, AbortSignal.timeout(8000)])
 				});
 				if (!response.ok) throw new Error('Query failed');
@@ -101,23 +109,20 @@
 	<AdminNav links={data.navigation} name={data.name} />
 </div>
 <main>
-	<div class="controls">
-		<label for="booking-date">Date</label>
-		<div class="date-control">
-			<span aria-hidden="true"
-				>{selectedDate ? day.setLocale('en').toFormat('ccc, dd LLL yyyy') : 'Select date'}</span
-			>
-			<input id="booking-date" type="date" value={selectedDate} onchange={changeDate} />
+	{#if selectedRange}
+		<div class="controls">
+			<label for="booking-date">Date</label>
+			<DateRangePicker id="booking-date" value={selectedRange} onCommit={changeRange} />
 		</div>
-	</div>
-	<section aria-label="Bookings for selected date" aria-busy={loading}>
+	{/if}
+	<section aria-label="Bookings for selected date range" aria-busy={loading}>
 		{#if loading}
 			<p role="status">Loading bookings...</p>
 		{:else if message}
 			<p role="alert">{message}</p>
 			<button class="retry" onclick={() => attempt++}>Retry</button>
 		{:else if !bookings.length}
-			<p role="status">No bookings for this date.</p>
+			<p role="status">No bookings for this date range.</p>
 		{:else}
 			<!-- svelte-ignore a11y_no_noninteractive_tabindex (Keyboard users need to scroll the table.) -->
 			<div
@@ -127,9 +132,10 @@
 				tabindex="0"
 			>
 				<table>
-					<caption class="sr-only"
-						>Bookings for {selectedDate} (Malaysia date); reservation times in your local timezone</caption
-					>
+					<caption class="sr-only">
+						Bookings for {selectedRange ? formatCalendarDateRange(selectedRange) : ''}
+						(Malaysia dates). Reservation times in your local timezone.
+					</caption>
 					<thead
 						><tr>
 							<th scope="col">Customer</th>
@@ -147,6 +153,7 @@
 								<td>
 									{#each groupBookingReservations(booking.reservations) as reservation (reservation.id)}
 										<div class="reservation">
+											<div>{reservationDate(reservation.from, reservation.to)}</div>
 											<div>
 												<strong
 													>{reservation.room_category_name}{reservation.room_category_acronym?.toUpperCase() ===
@@ -156,7 +163,7 @@
 												>
 												· {reservation.rooms.join(', ')}
 											</div>
-											<div>{local(reservation.from, 'h:mma')}</div>
+											<div>{local(reservation.from, 'h:mma')}-{local(reservation.to, 'h:mma')}</div>
 											<div>{formatDuration(reservation.duration)}</div>
 										</div>
 									{:else}No reservations{/each}
@@ -195,36 +202,6 @@
 			14px/1.4 'Montserrat',
 			sans-serif;
 	}
-	input,
-	button {
-		font-family: inherit;
-	}
-	input {
-		color-scheme: light;
-	}
-	.date-control {
-		position: relative;
-		border: 0;
-		background: var(--color-booking-primary);
-		color: var(--color-booking-black);
-		border-radius: 4px;
-		padding: 8px 12px;
-	}
-	.date-control input {
-		position: absolute;
-		inset: 0;
-		width: 100%;
-		height: 100%;
-		opacity: 0;
-		cursor: pointer;
-	}
-	.date-control input::-webkit-calendar-picker-indicator {
-		position: absolute;
-		inset: 0;
-		width: auto;
-		height: auto;
-		cursor: pointer;
-	}
 	.retry {
 		border-color: var(--color-booking-primary);
 		cursor: pointer;
@@ -239,7 +216,6 @@
 		gap: 12px;
 		margin-bottom: 20px;
 	}
-	input,
 	.retry {
 		border: 1px solid var(--color-booking-muted);
 		border-radius: 4px;
@@ -281,10 +257,6 @@
 	}
 	.reservation + .reservation {
 		margin-top: 16px;
-	}
-	.date-control:focus-within {
-		outline: 3px solid var(--color-booking-primary);
-		outline-offset: 3px;
 	}
 	.customer {
 		white-space: normal;
