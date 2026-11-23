@@ -1660,3 +1660,8 @@ the saved collection was updated locally without publishing.
 - Admin `/bookings/new` uses a full-width navbar and the same page gutters as
   the bookings list. The fixed Confirm button aligns with the form's right
   edge on desktop and stays centered on mobile.
+- Cloudflare Git builds for customer, admin and API failed during the shared
+  frozen install because the root lockfile contained multiple YAML documents.
+  Removed the extra package-manager metadata documents while preserving the
+  workspace dependency resolutions. pnpm 10.0.0 completed a frozen install
+  for all five workspace projects in a clean copy.
